@@ -1,0 +1,31 @@
+export interface UserProfile {
+  id: string;
+  username: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  fullName: string;
+  email: string;
+  phone: string;
+  imageUrl: string | null;
+  address: string | null;
+  role: string;
+  roleCode: string;
+  roleName: string;
+  organizationId: string | null;
+  organizationName: string | null;
+  emailVerified: boolean;
+  emailVerifiedAt: string | null;
+  mobileVerified: boolean;
+  mobileVerifiedAt: string | null;
+  signupDate: string;
+  signupAt: string | null;
+  lastLoginAt: string | null;
+  lastLogoutAt: string | null;
+  totalTicketCount: number;
+  totalTicketPrice: number;
+  ticketsUsed: number;
+  ticketsAtHand: number;
+  createdAt: string;
+  updatedAt: string;
+}
