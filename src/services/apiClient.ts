@@ -14,6 +14,7 @@ export const apiClient = async (url: string, options: RequestInit = {}) => {
   const baseUrl = "http://localhost:5010/api";
   // Ensure this code only runs on the client-side
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  console.log("Auth token value:", token);
 
   const publicRoutes = ["/auth/login", "/auth/signup"];
   const shouldSendToken = token && !publicRoutes.includes(url);
