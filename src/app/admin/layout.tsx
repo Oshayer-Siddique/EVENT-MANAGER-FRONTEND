@@ -22,7 +22,7 @@ const Sidebar = () => {
     { name: "Event", href: "/admin/events", icon: CalendarDays },
     { name: "Venue", href: "/admin/venue", icon: Building },
     { name: "Artist", href: "/admin/artist", icon: UserCircle2 },
-    { name: "Sponsor", href: "/admin/sponsor", icon: CircleDollarSign },
+    { name: "Sponsors", href: "/admin/sponsors", icon: CircleDollarSign },
     { name: "Organizer", href: "/admin/organizer", icon: Users2 },
     { name: "Teams", href: "/admin/team", icon: Users },
   ];

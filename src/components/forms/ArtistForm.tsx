@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Artist } from "@/types/artist";
-import { useRouter } from "next/navigation";
-import { createArtist, updateArtist } from "@/services/artistService";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Artist } from '@/types/artist';
+import { useRouter } from 'next/navigation';
+import { createArtist, updateArtist } from '@/services/artistService';
 import { Upload } from 'lucide-react';
 
 const formSchema = z.object({
@@ -32,6 +32,7 @@ export const ArtistForm: React.FC<ArtistFormProps> = ({ initialData }) => {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<ArtistFormValues>({
     resolver: zodResolver(formSchema),
@@ -48,6 +49,17 @@ export const ArtistForm: React.FC<ArtistFormProps> = ({ initialData }) => {
       imageUrl: "",
     },
   });
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setValue("imageUrl", reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const onSubmit = async (data: ArtistFormValues) => {
     try {
@@ -189,7 +201,7 @@ export const ArtistForm: React.FC<ArtistFormProps> = ({ initialData }) => {
                 <div className="flex text-sm text-gray-600">
                     <label htmlFor="imageUrl" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                         <span>Upload a file</span>
-                        <input id="imageUrl" {...register("imageUrl")} type="file" className="sr-only" />
+                        <input id="imageUrl" type="file" className="sr-only" onChange={handleImageUpload} />
                     </label>
                     <p className="pl-1">or drag and drop</p>
                 </div>

@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { BusinessOrganization } from '@/types/businessOrganization';
+import { Sponsor } from '@/types/sponsor';
 import { Upload } from 'lucide-react';
 
 const formSchema = z.object({
@@ -19,17 +19,17 @@ const formSchema = z.object({
   imageUrl: z.any().optional(),
 });
 
-interface BusinessOrganizationFormProps {
-  organization?: BusinessOrganization;
-  onSubmit: (data: Omit<BusinessOrganization, 'id'>) => void;
+interface SponsorFormProps {
+  sponsor?: Sponsor;
+  onSubmit: (data: Omit<Sponsor, 'id'>) => void;
   isSubmitting: boolean;
 }
 
-export default function BusinessOrganizationForm({
-  organization,
+export default function SponsorForm({
+  sponsor,
   onSubmit,
   isSubmitting,
-}: BusinessOrganizationFormProps) {
+}: SponsorFormProps) {
   const {
     register,
     handleSubmit,
@@ -37,7 +37,7 @@ export default function BusinessOrganizationForm({
     formState: { errors },
   } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: organization || {},
+    defaultValues: sponsor || {},
   });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,11 +52,11 @@ export default function BusinessOrganizationForm({
   };
 
   return (
-    <form id="business-organization-form" onSubmit={handleSubmit(onSubmit)}>
+    <form id="sponsor-form" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Organizer Name
+            Sponsor Name
           </label>
           <input
             id="name"
