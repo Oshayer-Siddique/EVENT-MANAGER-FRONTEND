@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createEventManager, createOperator } from "@/services/userService";
+import { createEventManager, createOperator, createEventChecker } from "@/services/userService";
 import { ArrowLeft } from "lucide-react";
 
 export default function NewTeamMemberPage() {
@@ -50,8 +50,10 @@ export default function NewTeamMemberPage() {
 
       if (role === 'EVENT_MANAGER') {
         await createEventManager(submissionData);
-      } else {
+      } else if (role === 'OPERATOR') {
         await createOperator(submissionData);
+      } else {
+        await createEventChecker(submissionData);
       }
 
       router.push('/admin/team');
@@ -86,6 +88,7 @@ export default function NewTeamMemberPage() {
               <SelectField label="Role" id="role" value={formData.role} onChange={handleChange} required>
                 <option value="EVENT_MANAGER">Event Manager</option>
                 <option value="OPERATOR">Operator</option>
+                <option value="EVENT_CHECKER">Event Checker</option>
               </SelectField>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <InputField label="First Name" id="firstName" value={formData.firstName} onChange={handleChange} required />

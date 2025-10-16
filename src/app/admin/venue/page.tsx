@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getVenues, deleteVenue } from "@/services/venueService";
@@ -79,8 +79,10 @@ const VenuePage = () => {
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Address</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Contact</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Capacity</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Events (T/L/U)</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Total Events</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Live</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Upcoming</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -100,10 +102,10 @@ const VenuePage = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-medium">{venue.maxCapacity || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
-                  {`${venue.totalEvents} / ${venue.liveEvents} / ${venue.eventsUpcoming}`}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.totalEvents}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.liveEvents}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.eventsUpcoming}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
                   <button onClick={() => router.push(`/admin/venue/${venue.id}`)} className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-gray-100 transition" title="View"><Eye size={18} /></button>
                   <button onClick={() => router.push(`/admin/venue/${venue.id}/edit`)} className="p-2 text-gray-400 hover:text-green-600 rounded-full hover:bg-gray-100 transition" title="Edit"><Edit size={18} /></button>
                   <button onClick={() => handleDelete(venue.id)} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition" title="Delete"><Trash2 size={18} /></button>

@@ -2,22 +2,30 @@
 import { apiClient } from './apiClient';
 import { Event } from '../types/event';
 
-export const getEvents = async (): Promise<Event[]> => {
-  return apiClient('/events');
+export interface Page<T> {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  size: number;
+  number: number;
+}
+
+export const getEvents = async (page = 0, size = 20): Promise<Page<Event>> => {
+  return apiClient(`/events?page=${page}&size=${size}`);
 };
 
-export const getEventById = async (id: string): Promise<Event> => {
+export const getEvent = async (id: string): Promise<Event> => {
   return apiClient(`/events/${id}`);
 };
 
-export const createEvent = async (event: Omit<Event, 'id'>): Promise<Event> => {
+export const createEvent = async (event: Partial<Event>): Promise<Event> => {
   return apiClient('/events', {
     method: 'POST',
     body: JSON.stringify(event),
   });
 };
 
-export const updateEvent = async (id: string, event: Partial<Omit<Event, 'id'>>): Promise<Event> => {
+export const updateEvent = async (id: string, event: Partial<Event>): Promise<Event> => {
   return apiClient(`/events/${id}`, {
     method: 'PUT',
     body: JSON.stringify(event),

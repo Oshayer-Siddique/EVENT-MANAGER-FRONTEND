@@ -1,11 +1,12 @@
-"use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { getEvents, deleteEvent } from "@/services/eventService";
-import { getVenues } from "@/services/venueService";
-import { Event } from "@/types/event";
-import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
-import Link from "next/link";
+'use client';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getEvents, deleteEvent, Page } from '@/services/eventService';
+import { getVenues } from '@/services/venueService';
+import { Event } from '@/types/event';
+import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import Link from 'next/link';
+import { formatDateRange, formatTime } from '@/lib/utils/dateUtils';
 
 interface EnrichedEvent extends Event {
   venueName: string;
@@ -13,46 +14,57 @@ interface EnrichedEvent extends Event {
 }
 
 const EventsPage = () => {
-  const [events, setEvents] = useState<EnrichedEvent[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [eventPage, setEventPage] = useState<Page<EnrichedEvent>>();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [eventsData, venuesData] = await Promise.all([
-          getEvents(),
+        const [eventsPageData, venuesData] = await Promise.all([
+          getEvents(currentPage, 10),
           getVenues(),
         ]);
 
         const venuesMap = new Map(venuesData.map((v) => [v.id, v]));
 
-        const enrichedEvents = eventsData.map((event) => ({
+        const enrichedEvents = eventsPageData.content.map((event) => ({
           ...event,
-          venueName: venuesMap.get(event.venueId)?.venueName || "N/A",
-          venueAddress: venuesMap.get(event.venueId)?.address || "N/A",
+          venueName: venuesMap.get(event.venueId)?.venueName || 'N/A',
+          venueAddress: venuesMap.get(event.venueId)?.address || 'N/A',
         }));
 
-        setEvents(enrichedEvents);
+        setEventPage({ ...eventsPageData, content: enrichedEvents });
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
     };
     fetchData();
-  }, []);
+  }, [currentPage]);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this event?")) {
+    if (window.confirm('Are you sure you want to delete this event?')) {
       try {
         await deleteEvent(id);
-        setEvents(events.filter((event) => event.id !== id));
+        // Refetch the current page
+        const eventsPageData = await getEvents(currentPage, 10);
+        const venuesData = await getVenues();
+        const venuesMap = new Map(venuesData.map((v) => [v.id, v]));
+        const enrichedEvents = eventsPageData.content.map((event) => ({
+          ...event,
+          venueName: venuesMap.get(event.venueId)?.venueName || 'N/A',
+          venueAddress: venuesMap.get(event.venueId)?.address || 'N/A',
+        }));
+        setEventPage({ ...eventsPageData, content: enrichedEvents });
+
       } catch (error) {
         console.error("Failed to delete event:", error);
       }
     }
   };
 
-  const filteredEvents = events.filter(
+  const filteredEvents = eventPage?.content.filter(
     (event) =>
       event.eventName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.typeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,14 +109,15 @@ const EventsPage = () => {
             <tr>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Event</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Venue</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Start Time</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">End Time</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Start Time</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">End Time</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Code</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {filteredEvents.map((event) => (
+            {filteredEvents?.map((event) => (
               <tr key={event.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">{event.eventName}</div>
@@ -114,27 +127,79 @@ const EventsPage = () => {
                   <div className="text-sm font-bold text-gray-900">{event.venueName}</div>
                   <div className="text-xs text-gray-500">{event.venueAddress}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {new Date(event.eventStart).toLocaleString()}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                  {formatDateRange(new Date(event.eventStart), new Date(event.eventEnd))}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {new Date(event.eventEnd).toLocaleString()}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                  {formatTime(new Date(event.eventStart))}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                  {formatTime(new Date(event.eventEnd))}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{event.eventCode}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1">
-                  <button onClick={() => router.push(`/admin/events/${event.id}/edit`)} className="p-2 text-gray-400 hover:text-green-600 rounded-full hover:bg-gray-100 transition" title="Edit"><Edit size={18} /></button>
-                  <button onClick={() => handleDelete(event.id)} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition" title="Delete"><Trash2 size={18} /></button>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
+                  <button onClick={() => router.push(`/admin/events/${event.id}`)} className="p-2 text-green-600 rounded-full transition" title="View"><Eye size={18} /></button>
+                  <button onClick={() => router.push(`/admin/events/${event.id}/edit`)} className="p-2 text-blue-600 rounded-full transition" title="Edit"><Edit size={18} /></button>
+                  <button onClick={() => handleDelete(event.id)} className="p-2 text-red-600 rounded-full transition" title="Delete"><Trash2 size={18} /></button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filteredEvents.length === 0 && (
+        {(!filteredEvents || filteredEvents.length === 0) && (
           <div className="text-center py-12">
             <p className="text-gray-500">No events found.</p>
           </div>
         )}
       </div>
+      {/* Pagination */}
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                    onClick={() => setCurrentPage(p => p - 1)}
+                    disabled={currentPage === 0}
+                    className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    Previous
+                </button>
+                <button
+                    onClick={() => setCurrentPage(p => p + 1)}
+                    disabled={!eventPage || currentPage >= eventPage.totalPages - 1}
+                    className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    Next
+                </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p className="text-sm text-gray-700">
+                        Showing <span className="font-medium">{eventPage ? eventPage.number * eventPage.size + 1 : 0}</span> to <span className="font-medium">{eventPage ? eventPage.number * eventPage.size + eventPage.content.length : 0}</span> of {' '}
+                        <span className="font-medium">{eventPage?.totalElements}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        <button
+                            onClick={() => setCurrentPage(p => p - 1)}
+                            disabled={currentPage === 0}
+                            className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                        >
+                            <span className="sr-only">Previous</span>
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                        {/* Current page number could be displayed here */}
+                        <button
+                            onClick={() => setCurrentPage(p => p + 1)}
+                            disabled={!eventPage || currentPage >= eventPage.totalPages - 1}
+                            className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                        >
+                            <span className="sr-only">Next</span>
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </nav>
+                </div>
+            </div>
+        </div>
     </div>
   );
 };

@@ -21,3 +21,14 @@ export const createOperator = async (userData: any) => {
 export const getOperators = async () => {
   return apiClient("/users/operators");
 };
+
+export const getEventCheckers = async () => {
+  return apiClient("/users/event-checkers");
+};
+
+export const createEventChecker = async (userData: any) => {
+  return apiClient("/users/event-checker", {
+    method: "POST",
+    body: JSON.stringify(userData),
+  });
+};

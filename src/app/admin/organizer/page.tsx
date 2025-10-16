@@ -53,7 +53,7 @@ export default function OrganizerPage() {
   return (
     <div className="container mx-auto p-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800">Organization Management</h1>
+        <h1 className="text-4xl font-bold text-gray-800">Organizers</h1>
         <Link href="/admin/organizer/new">
           <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
             <PlusCircle className="mr-2" />

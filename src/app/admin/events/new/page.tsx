@@ -1,71 +1,118 @@
-"use client";
+'use client';
 
-import { useState, useEffect, FormEvent, ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
-import { createEvent } from "@/services/eventService";
-import { getVenues } from "@/services/venueService";
-import { Event } from "@/types/event";
-import { Venue } from "@/types/venue";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check } from "lucide-react";
+import { useState, useEffect, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { createEvent } from '@/services/eventService';
+import { getVenues, getVenueLayouts } from '@/services/venueService';
+import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
+import { getArtists } from '@/services/artistService';
+import { getSponsors } from '@/services/sponsorService';
+import { getBusinessOrganizations } from '@/services/businessOrganizationService';
+import { Event } from '@/types/event';
+import { Venue } from '@/types/venue';
+import { Layout } from '@/types/layout';
+import { User } from '@/types/user';
+import { Artist } from '@/types/artist';
+import { Sponsor } from '@/types/sponsor';
+import { BusinessOrganization } from '@/types/businessOrganization';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import { Checklist } from '@/components/ui/Checklist';
 
-interface EventFormData {
-  typeCode: string;
-  typeName: string;
-  eventCode: string;
-  eventName: string;
-  eventStart: string;
-  eventEnd: string;
-  venueId: string;
-}
-
-// A more refined and professional style for form inputs
 const inputClasses = "block w-full appearance-none rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-gray-900 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm";
+
+const eventTypes = {
+    "Concert": "01",
+    "Fair": "02",
+    "Exhibition": "03",
+    "Movie": "04",
+    "Food Festival": "05",
+    "Photography": "06",
+};
 
 export default function NewEventPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState<EventFormData>({ /* ... */ });
+  const [formData, setFormData] = useState<Partial<Event>>({
+    artistIds: [],
+    sponsorIds: [],
+    organizerIds: [],
+  });
   const [venues, setVenues] = useState<Venue[]>([]);
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+  const [seatLayouts, setSeatLayouts] = useState<Layout[]>([]);
+  const [eventManagers, setEventManagers] = useState<User[]>([]);
+  const [operators, setOperators] = useState<User[]>([]);
+  const [eventCheckers, setEventCheckers] = useState<User[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [organizers, setOrganizers] = useState<BusinessOrganization[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchVenuesData = async () => {
+    const fetchData = async () => {
       try {
-        const venuesData = await getVenues();
+        const [venuesData, eventManagersData, operatorsData, eventCheckersData, artistsData, sponsorsData, organizersData] = await Promise.all([
+          getVenues(),
+          getEventManagers(),
+          getOperators(),
+          getEventCheckers(),
+          getArtists(),
+          getSponsors(),
+          getBusinessOrganizations(),
+        ]);
         setVenues(venuesData);
+        setEventManagers(eventManagersData);
+        setOperators(operatorsData);
+        setEventCheckers(eventCheckersData);
+        setArtists(artistsData);
+        setSponsors(sponsorsData);
+        setOrganizers(organizersData);
       } catch (err) {
-        console.error("Failed to fetch venues:", err);
-        setError("Error: Could not load venue data.");
+        console.error("Failed to fetch data:", err);
+        setError("Error: Could not load required data.");
       }
     };
-    fetchVenuesData();
+    fetchData();
   }, []);
 
   useEffect(() => {
-    setFormData((prev) => ({ ...prev, venueId: selectedVenueId || "" }));
-  }, [selectedVenueId]);
+    if (formData.venueId) {
+      const fetchLayouts = async () => {
+        try {
+          const layouts = await getVenueLayouts(formData.venueId!);
+          setSeatLayouts(layouts);
+        } catch (err) {
+          console.error("Failed to fetch layouts:", err);
+        }
+      };
+      fetchLayouts();
+    }
+  }, [formData.venueId]);
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === 'typeName') {
+        const typeCode = eventTypes[value as keyof typeof eventTypes] || '';
+        setFormData(prev => ({ ...prev, typeName: value, typeCode }));
+    } else {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleChecklistChange = (name: string, selectedIds: string[]) => {
+    setFormData(prev => ({ ...prev, [name]: selectedIds }));
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!formData.venueId) {
-      setError("A venue must be selected.");
-      return;
-    }
     setLoading(true);
-    const dataToSend = {
-      ...formData,
-      eventStart: new Date(formData.eventStart).toISOString(),
-      eventEnd: new Date(formData.eventEnd).toISOString(),
-    };
     try {
+        const dataToSend = {
+            ...formData,
+            eventStart: new Date(formData.eventStart!).toISOString(),
+            eventEnd: new Date(formData.eventEnd!).toISOString(),
+        };
       await createEvent(dataToSend);
       router.push("/admin/events");
     } catch (err: any) {
@@ -86,75 +133,148 @@ export default function NewEventPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            
-            {/* Left Column: Event Form */}
-            <div className="lg:col-span-3 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-              <h2 className="text-lg font-semibold leading-7 text-gray-900">Event Information</h2>
-              <p className="mt-1 text-sm leading-6 text-gray-600">Fill in the details for your new event.</p>
-              <div className="mt-8 grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-6">
-                <div className="sm:col-span-6">
-                  <label htmlFor="eventName" className="block text-sm font-medium leading-6 text-gray-900">Event Name</label>
-                  <div className="mt-2">
-                    <input type="text" name="eventName" id="eventName" value={formData.eventName} onChange={handleInputChange} className={inputClasses} placeholder="e.g., Annual Tech Conference" required />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+              {/* Event Info */}
+              <fieldset>
+                <legend className="text-lg font-semibold leading-7 text-gray-900">Event Information</legend>
+                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-6">
+                  <div className="sm:col-span-6">
+                    <label htmlFor="eventName" className="block text-sm font-medium leading-6 text-gray-900">Event Name</label>
+                    <input type="text" name="eventName" id="eventName" onChange={handleInputChange} className={inputClasses} required />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="eventCode" className="block text-sm font-medium leading-6 text-gray-900">Event Code</label>
+                    <input type="text" name="eventCode" id="eventCode" onChange={handleInputChange} className={inputClasses} required />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="typeName" className="block text-sm font-medium leading-6 text-gray-900">Type Name</label>
+                    <select name="typeName" id="typeName" onChange={handleInputChange} className={inputClasses} required>
+                        <option value="">Select a type</option>
+                        {Object.keys(eventTypes).map(type => (
+                            <option key={type} value={type}>{type}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="typeCode" className="block text-sm font-medium leading-6 text-gray-900">Type Code</label>
+                    <input type="text" name="typeCode" id="typeCode" value={formData.typeCode || ''} onChange={handleInputChange} className={inputClasses} required readOnly />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="venueId" className="block text-sm font-medium leading-6 text-gray-900">Venue</label>
+                    <select name="venueId" id="venueId" onChange={handleInputChange} className={inputClasses} required>
+                      <option value="">Select a venue</option>
+                      {venues.map(v => <option key={v.id} value={v.id}>{v.venueName}</option>)}
+                    </select>
+                  </div>
+                   <div className="sm:col-span-3">
+                    <label htmlFor="seatLayoutId" className="block text-sm font-medium leading-6 text-gray-900">Seat Layout</label>
+                    <select name="seatLayoutId" id="seatLayoutId" onChange={handleInputChange} className={inputClasses} disabled={!formData.venueId}>
+                      <option value="">Select a layout</option>
+                      {seatLayouts.map(l => <option key={l.id} value={l.id}>{l.layoutName}</option>)}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="eventStart" className="block text-sm font-medium leading-6 text-gray-900">Start Time</label>
+                    <input type="datetime-local" name="eventStart" id="eventStart" onChange={handleInputChange} className={inputClasses} required />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label htmlFor="eventEnd" className="block text-sm font-medium leading-6 text-gray-900">End Time</label>
+                    <input type="datetime-local" name="eventEnd" id="eventEnd" onChange={handleInputChange} className={inputClasses} required />
                   </div>
                 </div>
+              </fieldset>
 
-                <div className="sm:col-span-3">
-                  <label htmlFor="eventCode" className="block text-sm font-medium leading-6 text-gray-900">Event Code</label>
-                  <div className="mt-2">
-                    <input type="text" name="eventCode" id="eventCode" value={formData.eventCode} onChange={handleInputChange} className={inputClasses} placeholder="e.g., TC2025" required />
+              {/* Staffing */}
+              <fieldset>
+                <legend className="text-lg font-semibold leading-7 text-gray-900">Staffing</legend>
+                <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="eventManager" className="block text-sm font-medium leading-6 text-gray-900">Event Manager</label>
+                    <select name="eventManager" id="eventManager" onChange={handleInputChange} className={inputClasses} required>
+                      <option value="">Select a manager</option>
+                      {eventManagers.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="eventOperator1" className="block text-sm font-medium leading-6 text-gray-900">Operator 1</label>
+                    <select name="eventOperator1" id="eventOperator1" onChange={handleInputChange} className={inputClasses} required>
+                      <option value="">Select an operator</option>
+                      {operators.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="eventOperator2" className="block text-sm font-medium leading-6 text-gray-900">Operator 2 (Optional)</label>
+                    <select name="eventOperator2" id="eventOperator2" onChange={handleInputChange} className={inputClasses}>
+                      <option value="">Select an operator</option>
+                      {operators.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="eventChecker1" className="block text-sm font-medium leading-6 text-gray-900">Checker 1</label>
+                    <select name="eventChecker1" id="eventChecker1" onChange={handleInputChange} className={inputClasses} required>
+                      <option value="">Select a checker</option>
+                      {eventCheckers.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="eventChecker2" className="block text-sm font-medium leading-6 text-gray-900">Checker 2 (Optional)</label>
+                    <select name="eventChecker2" id="eventChecker2" onChange={handleInputChange} className={inputClasses}>
+                      <option value="">Select a checker</option>
+                      {eventCheckers.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    </select>
                   </div>
                 </div>
+              </fieldset>
 
-                <div className="sm:col-span-3">
-                  <label htmlFor="typeName" className="block text-sm font-medium leading-6 text-gray-900">Type Name</label>
-                  <div className="mt-2">
-                    <input type="text" name="typeName" id="typeName" value={formData.typeName} onChange={handleInputChange} className={inputClasses} placeholder="e.g., Conference" required />
-                  </div>
-                </div>
-                
-                <div className="sm:col-span-3">
-                  <label htmlFor="typeCode" className="block text-sm font-medium leading-6 text-gray-900">Type Code</label>
-                  <div className="mt-2">
-                    <input type="text" name="typeCode" id="typeCode" value={formData.typeCode} onChange={handleInputChange} className={inputClasses} placeholder="e.g., CONF" required />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="eventStart" className="block text-sm font-medium leading-6 text-gray-900">Start Time</label>
-                  <div className="mt-2">
-                    <input type="datetime-local" name="eventStart" id="eventStart" value={formData.eventStart} onChange={handleInputChange} className={inputClasses} required />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="eventEnd" className="block text-sm font-medium leading-6 text-gray-900">End Time</label>
-                  <div className="mt-2">
-                    <input type="datetime-local" name="eventEnd" id="eventEnd" value={formData.eventEnd} onChange={handleInputChange} className={inputClasses} required />
-                  </div>
-                </div>
-              </div>
+              {/* Ticketing */}
+                <fieldset>
+                    <legend className="text-lg font-semibold leading-7 text-gray-900">Ticketing</legend>
+                    <table className="min-w-full mt-4">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Tier</th>
+                                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">No. of Tickets</th>
+                                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {['vip', 'plat', 'gold', 'silver'].map(tier => (
+                                <tr key={tier}>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{tier.toUpperCase()}</td>
+                                    <td className="px-4 py-2">
+                                        <input type="number" name={`${tier}Tickets`} id={`${tier}Tickets`} onChange={handleInputChange} className={inputClasses} />
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        <input type="number" step="0.01" name={`${tier}TicketPrice`} id={`${tier}TicketPrice`} onChange={handleInputChange} className={inputClasses} />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </fieldset>
             </div>
 
-            {/* Right Column: Venue Selection */}
-            <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-                <h2 className="text-lg font-semibold leading-7 text-gray-900">Venue</h2>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Choose a venue for this event.</p>
-                <div className="mt-6 space-y-3 max-h-60 overflow-y-auto pr-2 -mr-2">
-                    {venues.length > 0 ? venues.map((venue) => (
-                    <div
-                        key={venue.id}
-                        onClick={() => setSelectedVenueId(venue.id)}
-                        className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-colors ${selectedVenueId === venue.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'}`}>
-                        <div>
-                            <div className="font-semibold text-sm text-gray-900">{venue.venueName}</div>
-                            <p className="text-sm text-gray-600 mt-1">{venue.address}</p>
-                        </div>
-                        {selectedVenueId === venue.id && <Check className="h-5 w-5 text-indigo-600" />}
-                    </div>
-                    )) : <p className="text-sm text-gray-500">Loading venues...</p>}
-                </div>
+            {/* Right Column: Associations */}
+            <div className="lg:col-span-1 bg-white p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <Checklist
+                    title="Artists"
+                    items={artists}
+                    selectedIds={formData.artistIds || []}
+                    onChange={(selectedIds) => handleChecklistChange('artistIds', selectedIds)}
+                />
+                <Checklist
+                    title="Sponsors"
+                    items={sponsors}
+                    selectedIds={formData.sponsorIds || []}
+                    onChange={(selectedIds) => handleChecklistChange('sponsorIds', selectedIds)}
+                />
+                <Checklist
+                    title="Organizers"
+                    items={organizers}
+                    selectedIds={formData.organizerIds || []}
+                    onChange={(selectedIds) => handleChecklistChange('organizerIds', selectedIds)}
+                />
             </div>
           </div>
 
