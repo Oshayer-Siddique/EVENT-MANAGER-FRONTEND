@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Search, Eye } from "lucide-react";
 import { getArtists, deleteArtist } from "@/services/artistService";
 import { Artist } from "@/types/artist";
 
@@ -78,15 +78,19 @@ export default function ArtistPage() {
         <table className="min-w-full">
           <thead className="bg-gray-100">
             <tr>
+              <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider"></th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Email</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Mobile</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredArtists.map((artist) => (
               <tr key={artist.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <img className="h-10 w-10 rounded-full" src={artist.imageUrl || `https://ui-avatars.com/api/?name=${artist.name.replace(' ', '+')}&background=random&color=fff`} alt="" />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">{artist.name}</div>
                 </td>
@@ -96,7 +100,10 @@ export default function ArtistPage() {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">{artist.mobile}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1">
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
+                  <Link href={`/admin/artist/${artist.id}`}>
+                    <button className="p-2 text-gray-400 hover:text-blue-600 rounded-full hover:bg-gray-100 transition" title="View"><Eye size={18} /></button>
+                  </Link>
                   <Link href={`/admin/artist/${artist.id}/edit`}>
                     <button className="p-2 text-gray-400 hover:text-green-600 rounded-full hover:bg-gray-100 transition" title="Edit"><Edit size={18} /></button>
                   </Link>

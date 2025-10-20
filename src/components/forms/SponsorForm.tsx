@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Sponsor } from '@/types/sponsor';
 import { Upload } from 'lucide-react';
+import { useState } from 'react';
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -30,24 +31,40 @@ export default function SponsorForm({
   onSubmit,
   isSubmitting,
 }: SponsorFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
   const {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: sponsor || {},
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const imageUrl = watch('imageUrl');
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setValue("imageUrl", reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'EVENT_MANAGEMENT'); // REPLACE WITH YOUR UPLOAD PRESET
+
+    try {
+      const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', { // REPLACE WITH YOUR CLOUD NAME
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      setValue("imageUrl", data.secure_url);
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -173,7 +190,13 @@ export default function SponsorForm({
           </label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
             <div className="space-y-1 text-center">
+              {isLoading ? (
+                <p>Uploading...</p>
+              ) : imageUrl ? (
+                <img src={imageUrl} alt="Uploaded image" className="w-32 h-32 object-cover rounded-lg mx-auto" />
+              ) : (
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
+              )}
                 <div className="flex text-sm text-gray-600">
                     <label htmlFor="imageUrl" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                         <span>Upload a file</span>

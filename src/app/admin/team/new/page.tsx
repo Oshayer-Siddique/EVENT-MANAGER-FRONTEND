@@ -25,6 +25,30 @@ export default function NewTeamMemberPage() {
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'EVENT_MANAGEMENT'); // REPLACE WITH YOUR UPLOAD PRESET
+
+    try {
+      const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', { // REPLACE WITH YOUR CLOUD NAME
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      setFormData(prev => ({ ...prev, imageUrl: data.secure_url }));
+    } catch (error) {
+      setError('Image upload failed. Please try again.');
+      console.error('Cloudinary upload error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -102,7 +126,22 @@ export default function NewTeamMemberPage() {
                 <InputField label="Phone Number" id="phone" type="tel" value={formData.phone} onChange={handleChange} />
                 <InputField label="Password" id="password" type="password" value={formData.password} onChange={handleChange} required />
               </div>
-              <InputField label="Image URL" id="imageUrl" value={formData.imageUrl} onChange={handleChange} placeholder="https://example.com/image.png" />
+              <div>
+                <label htmlFor="image" className="block text-sm font-bold text-slate-700 mb-1.5">
+                  Image
+                </label>
+                <input
+                  type="file"
+                  id="image"
+                  onChange={handleImageUpload}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+                />
+                {formData.imageUrl && (
+                  <div className="mt-4">
+                    <img src={formData.imageUrl} alt="Uploaded image" className="w-32 h-32 object-cover rounded-lg" />
+                  </div>
+                )}
+              </div>
             </div>
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-200 flex justify-end items-center space-x-3">
               {error && <p className="text-sm text-red-600 mr-auto">Error: {error}</p>}
