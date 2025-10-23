@@ -1,10 +1,11 @@
+'use client'
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { CreateEventRequest } from '@/types/event';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
 import { getVenues, getVenueLayouts } from '@/services/venueService';
@@ -12,24 +13,24 @@ import { getEventManagers, getOperators, getEventCheckers } from '@/services/use
 import { Venue } from '@/types/venue';
 import { Layout } from '@/types/layout';
 import { User } from '@/types/user';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils/utils';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { getArtists } from '@/services/artistService';
+import { getSponsors } from '@/services/sponsorService';
+import { getBusinessOrganizations } from '@/services/businessOrganizationService';
+import { Artist } from '@/types/artist';
+import { Sponsor } from '@/types/sponsor';
+import { BusinessOrganization } from '@/types/businessOrganization';
+import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
+import { ImageUploadField } from '@/components/forms/ImageUploadField';
 
 interface EventFormProps {
     onSubmit: (data: CreateEventRequest) => void;
     initialData?: Partial<CreateEventRequest>;
     isSubmitting?: boolean;
 }
-
-const Section = ({ title, description, children }: { title: string, description: string, children: React.ReactNode }) => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-gray-200 pt-8">
-        <div className="md:col-span-1">
-            <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-            <p className="text-sm text-gray-500 mt-1">{description}</p>
-        </div>
-        <div className="md:col-span-2 space-y-6">
-            {children}
-        </div>
-    </div>
-);
 
 const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     const { register, handleSubmit, control, formState: { errors }, watch } = useForm<CreateEventRequest>({
@@ -47,22 +48,31 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     const [eventManagers, setEventManagers] = useState<User[]>([]);
     const [operators, setOperators] = useState<User[]>([]);
     const [checkers, setCheckers] = useState<User[]>([]);
+    const [artists, setArtists] = useState<Artist[]>([]);
+    const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+    const [organizers, setOrganizers] = useState<BusinessOrganization[]>([]);
 
     const selectedVenueId = watch('venueId');
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [venuesData, eventManagersData, operatorsData, checkersData] = await Promise.all([
+                const [venuesData, eventManagersData, operatorsData, checkersData, artistsData, sponsorsData, organizersData] = await Promise.all([
                     getVenues(),
                     getEventManagers(),
                     getOperators(),
                     getEventCheckers(),
+                    getArtists(),
+                    getSponsors(),
+                    getBusinessOrganizations(),
                 ]);
                 setVenues(venuesData);
                 setEventManagers(eventManagersData);
                 setOperators(operatorsData);
                 setCheckers(checkersData);
+                setArtists(artistsData);
+                setSponsors(sponsorsData);
+                setOrganizers(organizersData);
             } catch (error) {
                 console.error('Failed to fetch form data:', error);
             }
@@ -92,261 +102,292 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     });
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-12">
-            <Section
-                title="Basic Information"
-                description="Provide the essential details for your event."
-            >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <Label htmlFor="eventName">Event Name</Label>
-                        <Input id="eventName" {...register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" />
-                        {errors.eventName && <p className="text-sm text-red-600 mt-1">{errors.eventName.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="eventCode">Event Code</Label>
-                        <Input id="eventCode" {...register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" />
-                        {errors.eventCode && <p className="text-sm text-red-600 mt-1">{errors.eventCode.message}</p>}
-                    </div>
-                </div>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <Label htmlFor="typeCode">Type Code</Label>
-                        <Input id="typeCode" {...register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" />
-                        {errors.typeCode && <p className="text-sm text-red-600 mt-1">{errors.typeCode.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="typeName">Type Name</Label>
-                        <Input id="typeName" {...register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" />
-                        {errors.typeName && <p className="text-sm text-red-600 mt-1">{errors.typeName.message}</p>}
-                    </div>
-                </div>
-            </Section>
+        <form onSubmit={handleSubmit(onSubmit)} className="w-full p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Event Details</CardTitle>
+                            <CardDescription>Provide the core details of your event.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <InputField label="Event Name" id="eventName" register={register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" error={errors.eventName} />
+                                <InputField label="Event Code" id="eventCode" register={register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" error={errors.eventCode} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <InputField label="Type Code" id="typeCode" register={register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" error={errors.typeCode} />
+                                <InputField label="Type Name" id="typeName" register={register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" error={errors.typeName} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <InputField label="Start Time" id="eventStart" type="datetime-local" register={register('eventStart', { required: 'Start time is required' })} error={errors.eventStart} />
+                                <InputField label="End Time" id="eventEnd" type="datetime-local" register={register('eventEnd', { required: 'End time is required' })} error={errors.eventEnd} />
+                            </div>
+                        </CardContent>
+                    </Card>
 
-            <Section
-                title="Schedule"
-                description="When will your event take place?"
-            >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <Label htmlFor="eventStart">Start Time</Label>
-                        <Input id="eventStart" type="datetime-local" {...register('eventStart', { required: 'Start time is required' })} />
-                        {errors.eventStart && <p className="text-sm text-red-600 mt-1">{errors.eventStart.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="eventEnd">End Time</Label>
-                        <Input id="eventEnd" type="datetime-local" {...register('eventEnd', { required: 'End time is required' })} />
-                        {errors.eventEnd && <p className="text-sm text-red-600 mt-1">{errors.eventEnd.message}</p>}
-                    </div>
-                </div>
-            </Section>
-
-            <Section
-                title="Venue & Seating"
-                description="Where will the event be held and what is the layout?"
-            >
-                <Controller
-                    name="venueId"
-                    control={control}
-                    rules={{ required: 'Venue is required' }}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a venue" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {venues.map(venue => (
-                                    <SelectItem key={venue.id} value={venue.id}>{venue.venueName}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-                <Controller
-                    name="seatLayoutId"
-                    control={control}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedVenueId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a seat layout" />
-                            </SelectTrigger>
-                            <SelectContent>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Venue & Layout</CardTitle>
+                            <CardDescription>Select the venue and seating arrangement.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <ComboboxField
+                                control={control}
+                                name="venueId"
+                                label="Venue"
+                                options={venues.map(v => ({ value: v.id, label: v.venueName }))}
+                                rules={{ required: 'Venue is required' }}
+                                error={errors.venueId}
+                            />
+                            <SelectField label="Seat Layout" id="seatLayoutId" control={control} disabled={!selectedVenueId} error={errors.seatLayoutId}>
                                 {seatLayouts.map(layout => (
                                     <SelectItem key={layout.id} value={layout.id}>{layout.layoutName}</SelectItem>
                                 ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-            </Section>
+                            </SelectField>
+                        </CardContent>
+                    </Card>
 
-            <Section
-                title="Event Staff"
-                description="Assign staff members to manage the event."
-            >
-                <Controller
-                    name="eventManager"
-                    control={control}
-                    rules={{ required: 'Event Manager is required' }}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select an event manager" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {eventManagers.map(user => (
-                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-                <Controller
-                    name="eventOperator1"
-                    control={control}
-                    rules={{ required: 'Operator 1 is required' }}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select an operator" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {operators.map(user => (
-                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-                <Controller
-                    name="eventOperator2"
-                    control={control}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select an operator (optional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {operators.map(user => (
-                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-                <Controller
-                    name="eventChecker1"
-                    control={control}
-                    rules={{ required: 'Checker 1 is required' }}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a checker" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {checkers.map(user => (
-                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-                <Controller
-                    name="eventChecker2"
-                    control={control}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a checker (optional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {checkers.map(user => (
-                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                />
-            </Section>
-
-            <Section
-                title="Ticket Tiers"
-                description="Define the types of tickets available for your event."
-            >
-                <div className="space-y-4">
-                    {fields.map((field, index) => (
-                        <div key={field.id} className="flex items-end gap-4 p-4 bg-gray-50 rounded-lg border">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-grow">
-                                <div>
-                                    <Label htmlFor={`tierCode-${index}`}>Tier Code</Label>
-                                    <Input id={`tierCode-${index}`} {...register(`ticketTiers.${index}.tierCode`, { required: 'Code is required' })} placeholder="VIP" />
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Ticketing</CardTitle>
+                            <CardDescription>Define ticket tiers for your event.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {fields.map((field, index) => (
+                                <div key={field.id} className="p-4 bg-slate-50 rounded-lg border space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <p className="font-medium">Tier #{index + 1}</p>
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-100">
+                                            <Trash2 className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <InputField label="Tier Code" id={`ticketTiers.${index}.tierCode`} register={register(`ticketTiers.${index}.tierCode`, { required: 'Code is required' })} placeholder="VIP" error={errors.ticketTiers?.[index]?.tierCode} />
+                                        <InputField label="Tier Name" id={`ticketTiers.${index}.tierName`} register={register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" error={errors.ticketTiers?.[index]?.tierName} />
+                                        <InputField label="Quantity" id={`ticketTiers.${index}.totalQuantity`} type="number" register={register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" error={errors.ticketTiers?.[index]?.totalQuantity} />
+                                        <InputField label="Price" id={`ticketTiers.${index}.price`} type="number" register={register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" error={errors.ticketTiers?.[index]?.price} />
+                                    </div>
                                 </div>
-                                <div>
-                                    <Label htmlFor={`tierName-${index}`}>Tier Name</Label>
-                                    <Input id={`tierName-${index}`} {...register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" />
-                                </div>
-                                <div>
-                                    <Label htmlFor={`totalQuantity-${index}`}>Quantity</Label>
-                                    <Input id={`totalQuantity-${index}`} type="number" {...register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" />
-                                </div>
-                                <div>
-                                    <Label htmlFor={`price-${index}`}>Price ($)</Label>
-                                    <Input id={`price-${index}`} type="number" step="0.01" {...register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" />
-                                </div>
-                            </div>
-                            <Button type="button" variant="outline" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-100">
-                                <Trash2 className="h-5 w-5" />
+                            ))}
+                            {fields.length === 0 && <p className="text-sm text-slate-500 text-center py-4">No ticket tiers added yet.</p>}
+                            <Button type="button" variant="outline" onClick={() => append({ tierCode: '', tierName: '', totalQuantity: 0, price: 0 })} className="w-full flex items-center">
+                                <PlusCircle className="h-4 w-4 mr-2" />
+                                Add Ticket Tier
                             </Button>
-                        </div>
-                    ))}
-                     {fields.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No ticket tiers added yet.</p>}
-                    <Button type="button" variant="outline" onClick={() => append({ tierCode: '', tierName: '', totalQuantity: 0, price: 0 })} className="mt-2 flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                        Add Ticket Tier
-                    </Button>
+                        </CardContent>
+                    </Card>
                 </div>
-            </Section>
 
-            <Section
-                title="Media & Associations"
-                description="Add images and link artists, sponsors, or organizers."
-            >
-                <div>
-                    <Label htmlFor="imageUrls">Image URLs</Label>
-                    <Textarea
-                        id="imageUrls"
-                        {...register('imageUrls', { setValueAs: (v) => typeof v === 'string' ? v.split('\n').map(s => s.trim()).filter(Boolean) : v })}
-                        placeholder="Enter one image URL per line"
-                        rows={3}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Enter each image URL on a new line.</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div>
-                        <Label htmlFor="artistIds">Artist IDs</Label>
-                        <Input id="artistIds" {...register('artistIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
-                    </div>
-                    <div>
-                        <Label htmlFor="sponsorIds">Sponsor IDs</Label>
-                        <Input id="sponsorIds" {...register('sponsorIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
-                    </div>
-                    <div>
-                        <Label htmlFor="organizerIds">Organizer IDs</Label>
-                        <Input id="organizerIds" {...register('organizerIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
-                    </div>
-                </div>
-            </Section>
+                <div className="lg:col-span-1 space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Team</CardTitle>
+                            <CardDescription>Assign event staff.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <ComboboxField
+                                control={control}
+                                name="eventManager"
+                                label="Event Manager"
+                                options={eventManagers.map(u => ({ value: u.id, label: u.username }))}
+                                rules={{ required: 'Event Manager is required' }}
+                                error={errors.eventManager}
+                            />
+                            <ComboboxField
+                                control={control}
+                                name="eventOperator1"
+                                label="Operator 1"
+                                options={operators.map(u => ({ value: u.id, label: u.username }))}
+                                rules={{ required: 'Operator 1 is required' }}
+                                error={errors.eventOperator1}
+                            />
+                            <ComboboxField
+                                control={control}
+                                name="eventOperator2"
+                                label="Operator 2"
+                                options={operators.map(u => ({ value: u.id, label: u.username }))}
+                                error={errors.eventOperator2}
+                            />
+                            <ComboboxField
+                                control={control}
+                                name="eventChecker1"
+                                label="Checker 1"
+                                options={checkers.map(u => ({ value: u.id, label: u.username }))}
+                                rules={{ required: 'Checker 1 is required' }}
+                                error={errors.eventChecker1}
+                            />
+                            <ComboboxField
+                                control={control}
+                                name="eventChecker2"
+                                label="Checker 2"
+                                options={checkers.map(u => ({ value: u.id, label: u.username }))}
+                                error={errors.eventChecker2}
+                            />
+                        </CardContent>
+                    </Card>
 
-            <div className="flex justify-end pt-8 border-t border-gray-200">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Media & Promotion</CardTitle>
+                            <CardDescription>Add promotional materials and associations.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <Controller
+                                name="imageUrls"
+                                control={control}
+                                render={({ field }) => <ImageUploadField value={field.value} onChange={field.onChange} />}
+                            />
+                            <Controller
+                                name="artistIds"
+                                control={control}
+                                render={({ field }) => (
+                                    <MultiSelectCombobox
+                                        options={artists.map(a => ({ value: a.id, label: a.name }))}
+                                        selected={field.value}
+                                        onChange={field.onChange}
+                                        placeholder="Select Artists"
+                                    />
+                                )}
+                            />
+                            <Controller
+                                name="sponsorIds"
+                                control={control}
+                                render={({ field }) => (
+                                    <MultiSelectCombobox
+                                        options={sponsors.map(s => ({ value: s.id, label: s.name }))}
+                                        selected={field.value}
+                                        onChange={field.onChange}
+                                        placeholder="Select Sponsors"
+                                    />
+                                )}
+                            />
+                            <Controller
+                                name="organizerIds"
+                                control={control}
+                                render={({ field }) => (
+                                    <MultiSelectCombobox
+                                        options={organizers.map(o => ({ value: o.id, label: o.name }))}
+                                        selected={field.value}
+                                        onChange={field.onChange}
+                                        placeholder="Select Organizers"
+                                    />
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+            <CardFooter className="flex justify-end pt-8 mt-8 border-t border-slate-200">
                 <Button type="button" variant="outline" onClick={() => { /* handle reset */ }} className="mr-4">
                     Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+                <Button type="submit" disabled={isSubmitting} className="min-w-[150px]">
                     {isSubmitting ? 'Creating...' : 'Create Event'}
                 </Button>
-            </div>
+            </CardFooter>
         </form>
     );
 };
+
+const InputField = ({ id, label, register, error, ...props }: any) => (
+    <div className="space-y-1">
+        <Label htmlFor={id} className="font-medium text-slate-700">{label}</Label>
+        <Input id={id} {...register} {...props} className="w-full" />
+        {error && <p className="text-sm text-red-600">{error.message}</p>}
+    </div>
+);
+
+const SelectField = ({ id, label, control, rules, error, children, ...props }: any) => (
+    <div className="space-y-1">
+        <Label htmlFor={id} className="font-medium text-slate-700">{label}</Label>
+        <Controller
+            name={id}
+            control={control}
+            rules={rules}
+            render={({ field }) => (
+                <Select onValueChange={field.onChange} defaultValue={field.value} {...props}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder={`Select a ${label.toLowerCase()}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {children}
+                    </SelectContent>
+                </Select>
+            )}
+        />
+        {error && <p className="text-sm text-red-600">{error.message}</p>}
+    </div>
+);
+
+const ComboboxField = ({ control, name, label, options, rules, error }: any) => {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <div className="space-y-1">
+            <Label className="font-medium text-slate-700">{label}</Label>
+            <Controller
+                name={name}
+                control={control}
+                rules={rules}
+                render={({ field }) => (
+                    <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={open}
+                                className="w-full justify-between"
+                            >
+                                {field.value
+                                    ? options.find((option: any) => option.value === field.value)?.label
+                                    : `Select a ${label.toLowerCase()}`}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+                                <CommandList>
+                                    <CommandEmpty>No {label.toLowerCase()} found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {options.map((option: any) => (
+                                            <CommandItem
+                                                key={option.value}
+                                                value={option.value}
+                                                onSelect={(currentValue) => {
+                                                    field.onChange(currentValue === field.value ? "" : currentValue)
+                                                    setOpen(false)
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        field.value === option.value ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                {option.label}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                )}
+            />
+            {error && <p className="text-sm text-red-600">{error.message}</p>}
+        </div>
+    );
+};
+
+
+const TextareaField = ({ id, label, register, error, ...props }: any) => (
+    <div className="space-y-1">
+        <Label htmlFor={id} className="font-medium text-slate-700">{label}</Label>
+        <Textarea id={id} {...register} {...props} className="w-full" />
+        {error && <p className="text-sm text-red-600">{error.message}</p>}
+    </div>
+);
 
 export default EventForm;

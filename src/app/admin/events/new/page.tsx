@@ -25,20 +25,25 @@ const NewEventPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="container mx-auto px-4 py-12">
-                <div className="flex items-center mb-8">
-                    <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-200 transition-colors">
-                        <ArrowLeft className="h-5 w-5 text-gray-600" />
+        <div className="bg-slate-50 min-h-screen p-4 sm:p-6 lg:p-8">
+            <div className="mx-auto">
+                <header className="mb-8">
+                    <button
+                        onClick={() => router.back()}
+                        className="flex items-center text-sm text-slate-500 hover:text-slate-700 mb-4"
+                    >
+                        <ArrowLeft size={16} className="mr-2" />
+                        Back to Events
                     </button>
-                    <h1 className="text-3xl font-bold text-gray-800 ml-4">Create a New Event</h1>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-                    <div className="p-8">
-                        <EventForm onSubmit={handleSubmit} />
+                    <div>
+                        <h1 className="text-4xl font-bold text-slate-800">Create a New Event</h1>
+                        <p className="mt-1 text-lg text-slate-500">Fill out the form below to create a new event.</p>
                     </div>
-                </div>
+                </header>
+
+                <main className="bg-white shadow-lg rounded-xl border border-slate-200">
+                    <EventForm onSubmit={handleSubmit} />
+                </main>
             </div>
         </div>
     );
