@@ -3,8 +3,15 @@ import { CreateEventRequest } from '@/types/event';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea'; // Assuming you have a Textarea component
+import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEffect, useState } from 'react';
+import { getVenues, getVenueLayouts } from '@/services/venueService';
+import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
+import { Venue } from '@/types/venue';
+import { Layout } from '@/types/layout';
+import { User } from '@/types/user';
 
 interface EventFormProps {
     onSubmit: (data: CreateEventRequest) => void;
@@ -25,7 +32,7 @@ const Section = ({ title, description, children }: { title: string, description:
 );
 
 const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
-    const { register, handleSubmit, control, formState: { errors } } = useForm<CreateEventRequest>({
+    const { register, handleSubmit, control, formState: { errors }, watch } = useForm<CreateEventRequest>({
         defaultValues: initialData || {
             ticketTiers: [{ tierCode: 'GENERAL', tierName: 'General Admission', totalQuantity: 100, price: 50 }],
             imageUrls: [],
@@ -34,6 +41,50 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
             organizerIds: [],
         }
     });
+
+    const [venues, setVenues] = useState<Venue[]>([]);
+    const [seatLayouts, setSeatLayouts] = useState<Layout[]>([]);
+    const [eventManagers, setEventManagers] = useState<User[]>([]);
+    const [operators, setOperators] = useState<User[]>([]);
+    const [checkers, setCheckers] = useState<User[]>([]);
+
+    const selectedVenueId = watch('venueId');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [venuesData, eventManagersData, operatorsData, checkersData] = await Promise.all([
+                    getVenues(),
+                    getEventManagers(),
+                    getOperators(),
+                    getEventCheckers(),
+                ]);
+                setVenues(venuesData);
+                setEventManagers(eventManagersData);
+                setOperators(operatorsData);
+                setCheckers(checkersData);
+            } catch (error) {
+                console.error('Failed to fetch form data:', error);
+            }
+        };
+        fetchData();
+    }, []);
+
+    useEffect(() => {
+        if (selectedVenueId) {
+            const fetchLayouts = async () => {
+                try {
+                    const layoutsData = await getVenueLayouts(selectedVenueId);
+                    setSeatLayouts(layoutsData);
+                } catch (error) {
+                    console.error('Failed to fetch seat layouts:', error);
+                }
+            };
+            fetchLayouts();
+        } else {
+            setSeatLayouts([]);
+        }
+    }, [selectedVenueId]);
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -48,24 +99,24 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <Label htmlFor="eventName" className="text-blue-600 font-semibold">Event Name</Label>
+                        <Label htmlFor="eventName">Event Name</Label>
                         <Input id="eventName" {...register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" />
                         {errors.eventName && <p className="text-sm text-red-600 mt-1">{errors.eventName.message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="eventCode"  className="text-blue-600 font-semibold">Event Code</Label>
+                        <Label htmlFor="eventCode">Event Code</Label>
                         <Input id="eventCode" {...register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" />
                         {errors.eventCode && <p className="text-sm text-red-600 mt-1">{errors.eventCode.message}</p>}
                     </div>
                 </div>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <Label htmlFor="typeCode" className="text-blue-600 font-semibold">Type Code</Label>
+                        <Label htmlFor="typeCode">Type Code</Label>
                         <Input id="typeCode" {...register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" />
                         {errors.typeCode && <p className="text-sm text-red-600 mt-1">{errors.typeCode.message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="typeName" className="text-blue-600 font-semibold">Type Name</Label>
+                        <Label htmlFor="typeName">Type Name</Label>
                         <Input id="typeName" {...register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" />
                         {errors.typeName && <p className="text-sm text-red-600 mt-1">{errors.typeName.message}</p>}
                     </div>
@@ -78,12 +129,12 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <Label htmlFor="eventStart" className="text-blue-600 font-semibold">Start Time</Label>
+                        <Label htmlFor="eventStart">Start Time</Label>
                         <Input id="eventStart" type="datetime-local" {...register('eventStart', { required: 'Start time is required' })} />
                         {errors.eventStart && <p className="text-sm text-red-600 mt-1">{errors.eventStart.message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="eventEnd" className="text-blue-600 font-semibold">End Time</Label>
+                        <Label htmlFor="eventEnd">End Time</Label>
                         <Input id="eventEnd" type="datetime-local" {...register('eventEnd', { required: 'End time is required' })} />
                         {errors.eventEnd && <p className="text-sm text-red-600 mt-1">{errors.eventEnd.message}</p>}
                     </div>
@@ -94,46 +145,128 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                 title="Venue & Seating"
                 description="Where will the event be held and what is the layout?"
             >
-                <div>
-                    <Label htmlFor="venueId" className="text-blue-600 font-semibold">Venue ID</Label>
-                    <Input id="venueId" {...register('venueId', { required: 'Venue ID is required' })} placeholder="Enter the Venue UUID" />
-                    {errors.venueId && <p className="text-sm text-red-600 mt-1">{errors.venueId.message}</p>}
-                </div>
-                <div>
-                    <Label htmlFor="seatLayoutId"  className="text-blue-600 font-semibold">Seat Layout ID</Label>
-                    <Input id="seatLayoutId" {...register('seatLayoutId')} placeholder="(Optional) Enter the Seat Layout UUID" />
-                </div>
+                <Controller
+                    name="venueId"
+                    control={control}
+                    rules={{ required: 'Venue is required' }}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a venue" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {venues.map(venue => (
+                                    <SelectItem key={venue.id} value={venue.id}>{venue.venueName}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+                <Controller
+                    name="seatLayoutId"
+                    control={control}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedVenueId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a seat layout" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {seatLayouts.map(layout => (
+                                    <SelectItem key={layout.id} value={layout.id}>{layout.layoutName}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
             </Section>
 
             <Section
                 title="Event Staff"
                 description="Assign staff members to manage the event."
             >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <Label htmlFor="eventManager" className="text-blue-600 font-semibold">Event Manager ID</Label>
-                        <Input id="eventManager" {...register('eventManager', { required: 'Manager ID is required' })} placeholder="Enter Manager UUID" />
-                        {errors.eventManager && <p className="text-sm text-red-600 mt-1">{errors.eventManager.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="eventOperator1"  className="text-blue-600 font-semibold">Operator 1 ID</Label>
-                        <Input id="eventOperator1" {...register('eventOperator1', { required: 'Operator ID is required' })} placeholder="Enter Operator UUID" />
-                        {errors.eventOperator1 && <p className="text-sm text-red-600 mt-1">{errors.eventOperator1.message}</p>}
-                    </div>
-                     <div>
-                        <Label htmlFor="eventOperator2" className="text-blue-600 font-semibold">Operator 2 ID</Label>
-                        <Input id="eventOperator2" {...register('eventOperator2')} placeholder="(Optional) Enter Operator UUID" />
-                    </div>
-                    <div>
-                        <Label htmlFor="eventChecker1" className="text-blue-600 font-semibold">Checker 1 ID</Label>
-                        <Input id="eventChecker1" {...register('eventChecker1', { required: 'Checker ID is required' })} placeholder="Enter Checker UUID" />
-                        {errors.eventChecker1 && <p className="text-sm text-red-600 mt-1">{errors.eventChecker1.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="eventChecker2"  className="text-blue-600 font-semibold">Checker 2 ID</Label>
-                        <Input id="eventChecker2" {...register('eventChecker2')} placeholder="(Optional) Enter Checker UUID" />
-                    </div>
-                </div>
+                <Controller
+                    name="eventManager"
+                    control={control}
+                    rules={{ required: 'Event Manager is required' }}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an event manager" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {eventManagers.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+                <Controller
+                    name="eventOperator1"
+                    control={control}
+                    rules={{ required: 'Operator 1 is required' }}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an operator" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {operators.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+                <Controller
+                    name="eventOperator2"
+                    control={control}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an operator (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {operators.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+                <Controller
+                    name="eventChecker1"
+                    control={control}
+                    rules={{ required: 'Checker 1 is required' }}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a checker" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {checkers.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
+                <Controller
+                    name="eventChecker2"
+                    control={control}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a checker (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {checkers.map(user => (
+                                    <SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                />
             </Section>
 
             <Section
@@ -145,23 +278,23 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                         <div key={field.id} className="flex items-end gap-4 p-4 bg-gray-50 rounded-lg border">
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-grow">
                                 <div>
-                                    <Label htmlFor={`tierCode-${index}`} className="text-blue-600 font-semibold">Tier Code</Label>
+                                    <Label htmlFor={`tierCode-${index}`}>Tier Code</Label>
                                     <Input id={`tierCode-${index}`} {...register(`ticketTiers.${index}.tierCode`, { required: 'Code is required' })} placeholder="VIP" />
                                 </div>
                                 <div>
-                                    <Label htmlFor={`tierName-${index}`} className="text-blue-600 font-semibold">Tier Name</Label>
+                                    <Label htmlFor={`tierName-${index}`}>Tier Name</Label>
                                     <Input id={`tierName-${index}`} {...register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" />
                                 </div>
                                 <div>
-                                    <Label htmlFor={`totalQuantity-${index}`} className="text-blue-600 font-semibold">Quantity</Label>
+                                    <Label htmlFor={`totalQuantity-${index}`}>Quantity</Label>
                                     <Input id={`totalQuantity-${index}`} type="number" {...register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" />
                                 </div>
                                 <div>
-                                    <Label htmlFor={`price-${index}`} className="text-blue-600 font-semibold">Price ($)</Label>
+                                    <Label htmlFor={`price-${index}`}>Price ($)</Label>
                                     <Input id={`price-${index}`} type="number" step="0.01" {...register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" />
                                 </div>
                             </div>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-100">
+                            <Button type="button" variant="outline" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-100">
                                 <Trash2 className="h-5 w-5" />
                             </Button>
                         </div>
@@ -179,7 +312,7 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                 description="Add images and link artists, sponsors, or organizers."
             >
                 <div>
-                    <Label htmlFor="imageUrls" className="text-blue-600 font-semibold">Image URLs</Label>
+                    <Label htmlFor="imageUrls">Image URLs</Label>
                     <Textarea
                         id="imageUrls"
                         {...register('imageUrls', { setValueAs: (v) => typeof v === 'string' ? v.split('\n').map(s => s.trim()).filter(Boolean) : v })}
@@ -190,15 +323,15 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div>
-                        <Label htmlFor="artistIds" className="text-blue-600 font-semibold">Artist IDs</Label>
+                        <Label htmlFor="artistIds">Artist IDs</Label>
                         <Input id="artistIds" {...register('artistIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
                     </div>
                     <div>
-                        <Label htmlFor="sponsorIds" className="text-blue-600 font-semibold">Sponsor IDs</Label>
+                        <Label htmlFor="sponsorIds">Sponsor IDs</Label>
                         <Input id="sponsorIds" {...register('sponsorIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
                     </div>
                     <div>
-                        <Label htmlFor="organizerIds" className="text-blue-600 font-semibold">Organizer IDs</Label>
+                        <Label htmlFor="organizerIds">Organizer IDs</Label>
                         <Input id="organizerIds" {...register('organizerIds', { setValueAs: (v) => typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : v })} placeholder="Comma-separated UUIDs" />
                     </div>
                 </div>
