@@ -1,37 +1,44 @@
+import {apiClient} from "./apiClient";
+import { Event, CreateEventRequest, UpdateEventRequest } from "../types/event";
 
-import { apiClient } from './apiClient';
-import { Event } from '../types/event';
-
+// Define a generic Page type if it's not already defined globally
 export interface Page<T> {
-  content: T[];
-  totalPages: number;
-  totalElements: number;
-  size: number;
-  number: number;
+    content: T[];
+    totalPages: number;
+    totalElements: number;
+    number: number;
+    size: number;
+    // Add other pagination fields if your backend sends them
 }
 
-export const getEvents = async (page = 0, size = 20): Promise<Page<Event>> => {
-  return apiClient(`/events?page=${page}&size=${size}`);
+const EVENT_API_URL = "/events";
+
+export const createEvent = (data: CreateEventRequest): Promise<Event> => {
+    return apiClient(EVENT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
 };
 
-export const getEvent = async (id: string): Promise<Event> => {
-  return apiClient(`/events/${id}`);
+export const getEvent = (id: string): Promise<Event> => {
+    return apiClient(`${EVENT_API_URL}/${id}`);
 };
 
-export const createEvent = async (event: Partial<Event>): Promise<Event> => {
-  return apiClient('/events', {
-    method: 'POST',
-    body: JSON.stringify(event),
-  });
+export const listEvents = (page = 0, size = 20): Promise<Page<Event>> => {
+    return apiClient(`${EVENT_API_URL}?page=${page}&size=${size}&sort=eventStart`);
 };
 
-export const updateEvent = async (id: string, event: Partial<Event>): Promise<Event> => {
-  return apiClient(`/events/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(event),
-  });
+export const updateEvent = (id: string, data: UpdateEventRequest): Promise<Event> => {
+    return apiClient(`${EVENT_API_URL}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
 };
 
-export const deleteEvent = async (id: string): Promise<void> => {
-  await apiClient(`/events/${id}`, { method: 'DELETE' });
+export const deleteEvent = (id: string): Promise<void> => {
+    return apiClient(`${EVENT_API_URL}/${id}`, {
+        method: 'DELETE',
+    });
 };

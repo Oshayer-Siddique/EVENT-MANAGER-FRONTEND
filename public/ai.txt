@@ -60,698 +60,697 @@ public class EventController {
     }
 }
 
+package com.oshayer.event_manager.ticketing.controller;
+
+import com.oshayer.event_manager.ticketing.dto.*;
+import com.oshayer.event_manager.ticketing.service.TicketService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/tickets")
+@RequiredArgsConstructor
+public class TicketController {
+
+    private final TicketService ticketService;
+
+    @PostMapping("/reserve")
+    public ResponseEntity<TicketResponse> reserve(@Valid @RequestBody TicketCreateRequest req) {
+        return ResponseEntity.ok(ticketService.createPending(req));
+    }
+
+    @PostMapping("/issue/{ticketId}")
+    public ResponseEntity<TicketResponse> issue(@PathVariable java.util.UUID ticketId) {
+        return ResponseEntity.ok(ticketService.issue(ticketId));
+    }
+
+    @PostMapping("/checkin/{ticketId}")
+    public ResponseEntity<TicketResponse> checkIn(@PathVariable java.util.UUID ticketId,
+                                                  @Valid @RequestBody TicketCheckInRequest req) {
+        return ResponseEntity.ok(ticketService.checkIn(ticketId, req));
+    }
+
+    @PostMapping("/refund/{ticketId}")
+    public ResponseEntity<TicketResponse> refund(@PathVariable java.util.UUID ticketId,
+                                                 @Valid @RequestBody TicketRefundRequest req) {
+        return ResponseEntity.ok(ticketService.refund(ticketId, req));
+    }
+
+    @GetMapping("/{ticketId}")
+    public ResponseEntity<TicketResponse> get(@PathVariable java.util.UUID ticketId) {
+        return ResponseEntity.ok(ticketService.get(ticketId));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TicketResponse>> listTickets(
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) UUID buyerId
+    ) {
+        if (eventId != null) {
+            return ResponseEntity.ok(ticketService.listByEvent(eventId));
+        }
+        if (buyerId != null) {
+            return ResponseEntity.ok(ticketService.listByBuyer(buyerId));
+        }
+        // Consider returning a 400 Bad Request if no filter is provided, or defaulting to all tickets if that's desired.
+        return ResponseEntity.ok(Collections.emptyList());
+    }
+}
+
+package com.oshayer.event_manager.ticketing.controller;
+
+import com.oshayer.event_manager.ticketing.dto.*;
+import com.oshayer.event_manager.ticketing.service.ReservationHoldService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/holds")
+@RequiredArgsConstructor
+public class ReservationHoldController {
+
+    private final ReservationHoldService holdService;
+
+    @PostMapping
+    public ResponseEntity<HoldResponse> create(@Valid @RequestBody HoldCreateRequest req) {
+        return ResponseEntity.ok(holdService.create(req));
+    }
+
+    @PostMapping("/release")
+    public ResponseEntity<HoldResponse> release(@Valid @RequestBody HoldReleaseRequest req) {
+        return ResponseEntity.ok(holdService.release(req));
+    }
+
+    @PostMapping("/convert")
+    public ResponseEntity<HoldResponse> convert(@Valid @RequestBody HoldConvertRequest req) {
+        return ResponseEntity.ok(holdService.convert(req));
+    }
+
+    @GetMapping("/{holdId}")
+    public ResponseEntity<HoldResponse> get(@PathVariable java.util.UUID holdId) {
+        return ResponseEntity.ok(holdService.get(holdId));
+    }
+
+    @GetMapping("/events/{eventId}")
+    public ResponseEntity<List<HoldResponse>> listActive(@PathVariable java.util.UUID eventId) {
+        return ResponseEntity.ok(holdService.listActive(eventId));
+    }
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class CreateEventRequest {
+
+    // Identity & schedule
+    @NotBlank private String typeCode;
+    @NotBlank private String typeName;
+    @NotBlank private String eventCode;
+    @NotBlank private String eventName;
+    @NotNull private ZonedDateTime eventStart;
+    @NotNull private ZonedDateTime eventEnd;
+
+    // Venue & layout
+    @NotNull private UUID venueId;
+    private UUID seatLayoutId; // optional
+
+    // Staffing
+    @NotNull private UUID eventManager;
+    @NotNull private UUID eventOperator1;
+    private UUID eventOperator2;
+    @NotNull private UUID eventChecker1;
+    private UUID eventChecker2;
+
+    private List<String> imageUrls;
+
+    private List<CreateEventTicketTierRequest> ticketTiers;
+
+    // Optional associations
+    private List<UUID> artistIds;
+    private List<UUID> sponsorIds;
+    private List<UUID> organizerIds;
+
+
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class CreateEventTicketTierRequest {
+    @NotBlank private String tierCode;
+    @NotBlank private String tierName;
+    @NotNull @PositiveOrZero private Integer totalQuantity;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import lombok.*;
+import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class EventResponse {
+    private UUID id;
+
+    private String typeCode;
+    private String typeName;
+    private String eventCode;
+    private String eventName;
+    private ZonedDateTime eventStart;
+    private ZonedDateTime eventEnd;
+
+    private UUID venueId;
+    private UUID seatLayoutId;
+
+    private UUID eventManager;
+    private UUID eventOperator1;
+    private UUID eventOperator2;
+    private UUID eventChecker1;
+    private UUID eventChecker2;
+
+    private List<UUID> organizerIds;
+    private List<String> imageUrls;
+
+    private List<EventTicketTierResponse> ticketTiers;
+
+    private List<UUID> artistIds;
+    private List<UUID> sponsorIds;
+
+}
+
+
+
+package com.oshayer.event_manager.events.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class EventTicketTierResponse {
+    private UUID id;
+    private String tierCode;
+    private String tierName;
+    private Integer totalQuantity;
+    private BigDecimal price;
+    private Integer soldQuantity;
+    private Integer usedQuantity;
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.*;
+import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class UpdateEventRequest {
+    // Identity & schedule
+    private String typeCode;
+    private String typeName;
+    private String eventCode;   // unique if provided
+    private String eventName;
+
+    private ZonedDateTime eventStart;
+    private ZonedDateTime eventEnd;
+
+    // Venue & layout
+    private UUID venueId;
+    private UUID seatLayoutId;
+
+    // Staffing
+    private UUID eventManager;
+    private UUID eventOperator1;
+    private UUID eventOperator2;
+    private UUID eventChecker1;
+    private UUID eventChecker2;
+
+    private List<UUID> organizerIds;
+    private List<String> imageUrls;
+
+    private List<UpdateEventTicketTierRequest> ticketTiers;
+
+    // Replace associations if present (null = don’t touch, empty list = clear)
+    private List<UUID> artistIds;
+    private List<UUID> sponsorIds;
+
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class UpdateEventTicketTierRequest {
+    private UUID id; // ID is needed to identify which tier to update
+    private String tierCode;
+    private String tierName;
+    @PositiveOrZero private Integer totalQuantity;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+}
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldConvertRequest {
+    @NotNull private UUID holdId;
+    @NotNull private UUID paymentId;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldCreateRequest {
+    @NotNull private UUID eventId;
+    private UUID buyerId; // nullable = guest allowed
+
+    @NotEmpty
+    private List<UUID> seatIds; // The specific seats to be held
+
+    @Future @NotNull private OffsetDateTime expiresAt;
+}
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldReleaseRequest {
+    @NotNull private UUID holdId;
+    private String reason;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldResponse {
+    private UUID id;
+    private UUID eventId;
+    private UUID buyerId;
+    private String status;
+    private List<HeldSeatInfo> heldSeats;
+    private OffsetDateTime expiresAt;
+    private UUID finalizedPaymentId;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class HeldSeatInfo {
+        private UUID seatId;
+        private String seatLabel;
+        private String tierCode;
+    }
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketCheckInRequest {
+    @NotNull private UUID checkerId;
+    private String gate;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketCreateRequest {
+    @NotNull private UUID eventId;
+    @NotNull private UUID seatId; // The ID of the desired SeatEntity
+    @NotNull private UUID buyerId;
+
+    // Optional reservation time for pending tickets
+    private OffsetDateTime reservedUntil;
+
+    // Optional holder info if different from buyer
+    private String holderName;
+    @Email private String holderEmail;
+}
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.math.BigDecimal;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketRefundRequest {
+    @NotNull @DecimalMin("0.00")
+    private BigDecimal refundAmount;
+}
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketResponse {
+    private UUID id;
+    private String status;
+
+    // Flattened from related entities for convenience
+    private UUID eventId;
+    private UUID buyerId;
+    private UUID seatId;
+    private String seatLabel;
+    private String tierCode;
+    private BigDecimal price;
+
+    // Verification and Holder Info
+    private String qrCode;
+    private String verificationCode;
+    private String holderName;
+    private String holderEmail;
+
+    // Check-in Info
+    private String gate;
+    private UUID checkerId;
+    private OffsetDateTime checkedInAt;
+
+    // Lifecycle Timestamps
+    private OffsetDateTime reservedUntil;
+    private OffsetDateTime issuedAt;
+
+    // Refund Info
+    private BigDecimal refundAmount;
+    private OffsetDateTime refundedAt;
+
+    // Audit Timestamps
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+}
+
+
+
+package com.oshayer.event_manager.users.entity;
+
+public enum EnumUserRole {
+    ROLE_USER("801", "User"),
+    ROLE_ORG_ADMIN("802", "Organization Admin"),
+    ROLE_EVENT_MANAGER("803", "Event Manager"),
+    ROLE_OPERATOR("804", "Operator"),
+    ROLE_EVENT_CHECKER("805", "Event Checker"); // ✅ new role added
+
+    private final String code;
+    private final String displayName;
+
+    EnumUserRole(String code, String displayName) {
+        this.code = code;
+        this.displayName = displayName;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public static EnumUserRole fromCode(String code) {
+        for (EnumUserRole role : EnumUserRole.values()) {
+            if (role.code.equals(code)) {
+                return role;
+            }
+        }
+        throw new IllegalArgumentException("Unknown role code: " + code);
+    }
+}
+
+
 
 package com.oshayer.event_manager.events.entity;
 
+import com.oshayer.event_manager.seat.entity.SeatEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime; // If your project uses OffsetDateTime elsewhere, switch for consistency.
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(
-        name = "events",
+        name = "event_seats",
+        // This constraint is the core of the design: a seat can only appear once per event.
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_events_event_code", columnNames = "event_code")
+                @UniqueConstraint(name = "uk_event_seat", columnNames = {"event_id", "seat_id"})
         },
         indexes = {
-                @Index(name = "idx_events_start", columnList = "event_start"),
-                @Index(name = "idx_events_venue", columnList = "venue_id")
+                @Index(name = "idx_event_seat_status", columnList = "status")
         }
 )
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
-public class EventEntity {
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class EventSeatEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(columnDefinition = "uuid default uuid_generate_v4()")
+    @GeneratedValue
     private UUID id;
 
-    // Identity
-    @Column(name = "type_code", nullable = false)
-    private String typeCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    private EventEntity event;
 
-    @Column(name = "type_name", nullable = false)
-    private String typeName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seat_id", nullable = false)
+    private SeatEntity seat;
 
-    @Column(name = "event_code", nullable = false)
-    private String eventCode;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EventSeatStatus status = EventSeatStatus.AVAILABLE;
 
-    @Column(name = "event_name", nullable = false)
-    private String eventName;
+    @Column(name = "tier_code", nullable = false, length = 20)
+    private String tierCode; // e.g., VIP, GOLD. Set when generating the inventory.
 
-    // Schedule
-    @Column(name = "event_start", nullable = false)
-    private ZonedDateTime eventStart;
+    @Column(precision = 12, scale = 2)
+    private BigDecimal price;
 
-    @Column(name = "event_end", nullable = false)
-    private ZonedDateTime eventEnd;
-
-    // Location (kept as UUID to match your current design)
-    @Column(name = "venue_id", nullable = false)
-    private UUID venueId;
-
-    // Optional: enforce capacity against a specific layout
-    @Column(name = "seat_layout_id")
-    private UUID seatLayoutId;
-
-    // Staffing (UUIDs of users)
-    @Column(name = "event_manager", nullable = false)
-    private UUID eventManager;
-
-    @Column(name = "event_operator1", nullable = false)
-    private UUID eventOperator1;
-
-    @Column(name = "event_operator2")
-    private UUID eventOperator2;
-
-    @Column(name = "event_checker1", nullable = false)
-    private UUID eventChecker1;
-
-    @Column(name = "event_checker2")
-    private UUID eventChecker2;
-
-    // Ticket tiers (use BigDecimal for currency)
-    @Column(name = "vip_tickets")
-    private Integer vipTickets;
-
-    @Column(name = "vip_ticket_price", precision = 12, scale = 2)
-    private BigDecimal vipTicketPrice;
-
-    @Builder.Default
-    @Column(name = "vip_tickets_sold", nullable = false)
-    private Integer vipTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "vip_tickets_used", nullable = false)
-    private Integer vipTicketsUsed = 0;
-
-    @Column(name = "plat_tickets")
-    private Integer platTickets;
-
-    @Column(name = "plat_ticket_price", precision = 12, scale = 2)
-    private BigDecimal platTicketPrice;
-
-    @Builder.Default
-    @Column(name = "plat_tickets_sold", nullable = false)
-    private Integer platTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "plat_tickets_used", nullable = false)
-    private Integer platTicketsUsed = 0;
-
-    @Column(name = "gold_tickets")
-    private Integer goldTickets;
-
-    @Column(name = "gold_ticket_price", precision = 12, scale = 2)
-    private BigDecimal goldTicketPrice;
-
-    @Builder.Default
-    @Column(name = "gold_tickets_sold", nullable = false)
-    private Integer goldTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "gold_tickets_used", nullable = false)
-    private Integer goldTicketsUsed = 0;
-
-    @Column(name = "silver_tickets")
-    private Integer silverTickets;
-
-    @Column(name = "silver_ticket_price", precision = 12, scale = 2)
-    private BigDecimal silverTicketPrice;
-
-    @Builder.Default
-    @Column(name = "silver_tickets_sold", nullable = false)
-    private Integer silverTicketsSold = 0;
-
-    @Builder.Default
-    @Column(name = "silver_tickets_used", nullable = false)
-    private Integer silverTicketsUsed = 0;
-
-    // Audit
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private ZonedDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(name = "edited_at", nullable = false)
-    private ZonedDateTime editedAt;
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 
-    @Column(name = "data_digest")
-    private String dataDigest;
-
-    // Concurrency safety
-    @Version
-    @Column(name = "version", nullable = false)
-    @Builder.Default
-    private Long version = 0L;
-}
-
-package com.oshayer.event_manager.events.entity;
-
-import jakarta.persistence.*;
-import lombok.*;
-import java.util.UUID;
-
-@Entity @Table(
-        name = "event_artists",
-        uniqueConstraints = @UniqueConstraint(name="uk_event_artist", columnNames={"event_id","artist_id"})
-)
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class EventArtistLink {
-    @Id @GeneratedValue private UUID id;
-
-    @Column(name="event_id", nullable=false) private UUID eventId;
-    @Column(name="artist_id", nullable=false) private UUID artistId;
+    public enum EventSeatStatus {
+        AVAILABLE,
+        RESERVED, // Temporarily held (e.g., in a user's cart)
+        SOLD
+    }
 }
 
 
-package com.oshayer.event_manager.events.entity;
+package com.oshayer.event_manager.ticketing.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
-import java.util.UUID;
-
-@Entity @Table(
-        name = "event_organizers",
-        uniqueConstraints = @UniqueConstraint(name="uk_event_organizer", columnNames={"event_id","org_id"})
-)
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class EventOrganizerLink {
-    @Id @GeneratedValue private UUID id;
-
-    @Column(name="event_id", nullable=false) private UUID eventId;
-    @Column(name="org_id",   nullable=false) private UUID orgId;
-}
-
-
-package com.oshayer.event_manager.events.entity;
-
-import jakarta.persistence.*;
-import lombok.*;
-import java.util.UUID;
-
-@Entity @Table(
-        name = "event_sponsors",
-        uniqueConstraints = @UniqueConstraint(name="uk_event_sponsor", columnNames={"event_id","sponsor_id"})
-)
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class EventSponsorLink {
-    @Id @GeneratedValue private UUID id;
-
-    @Column(name="event_id", nullable=false) private UUID eventId;
-    @Column(name="sponsor_id", nullable=false) private UUID sponsorId;
-}
-
-package com.oshayer.event_manager.events.repository;
-
-import com.oshayer.event_manager.events.entity.EventEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.Optional;
-import java.util.UUID;
-
-public interface EventRepository extends JpaRepository<EventEntity, UUID> {
-    Optional<EventEntity> findByEventCode(String eventCode);
-    boolean existsByEventCode(String eventCode);
-}
-
-package com.oshayer.event_manager.events.repository;
-
-import com.oshayer.event_manager.events.entity.EventOrganizerLink;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.UUID;
-
-public interface EventOrganizerLinkRepository extends JpaRepository<EventOrganizerLink, UUID> { }
-
-package com.oshayer.event_manager.events.repository;
-
-import com.oshayer.event_manager.events.entity.EventArtistLink;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.UUID;
-
-public interface EventArtistLinkRepository extends JpaRepository<EventArtistLink, UUID> { }
-
-
-package com.oshayer.event_manager.events.repository;
-
-import com.oshayer.event_manager.events.entity.EventSponsorLink;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.UUID;
-
-public interface EventSponsorLinkRepository extends JpaRepository<EventSponsorLink, UUID> { }
-
-
-package com.oshayer.event_manager.events.service.impl;
-
-import com.oshayer.event_manager.artists.repository.ArtistRepository;
-import com.oshayer.event_manager.business_organizations.repository.BusinessOrganizationRepository;
-import com.oshayer.event_manager.events.dto.CreateEventRequest;
-import com.oshayer.event_manager.events.dto.EventResponse;
-import com.oshayer.event_manager.events.dto.UpdateEventRequest;
-import com.oshayer.event_manager.events.entity.EventArtistLink;
-import com.oshayer.event_manager.events.entity.EventEntity;
-import com.oshayer.event_manager.events.entity.EventOrganizerLink;
-import com.oshayer.event_manager.events.entity.EventSponsorLink;
-import com.oshayer.event_manager.events.repository.EventArtistLinkRepository;
-import com.oshayer.event_manager.events.repository.EventOrganizerLinkRepository;
-import com.oshayer.event_manager.events.repository.EventRepository;
-import com.oshayer.event_manager.events.repository.EventSponsorLinkRepository;
-import com.oshayer.event_manager.events.service.EventService;
-import com.oshayer.event_manager.seat.entity.SeatLayout;
-import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
-import com.oshayer.event_manager.sponsors.repository.SponsorRepository;
-import com.oshayer.event_manager.users.entity.EnumUserRole;
+import com.oshayer.event_manager.events.entity.EventSeatEntity;
 import com.oshayer.event_manager.users.entity.UserEntity;
-import com.oshayer.event_manager.users.repository.UserRepository;
-import com.oshayer.event_manager.venues.entity.EventVenue;
-import com.oshayer.event_manager.venues.repository.EventVenueRepository;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
-@Service
-@RequiredArgsConstructor
-public class EventServiceImpl implements EventService {
-
-    private final EventRepository eventRepo;
-    private final EventVenueRepository venueRepo;
-    private final SeatLayoutRepository seatLayoutRepo;
-
-    private final UserRepository userRepo;
-
-    private final ArtistRepository artistRepo;
-    private final SponsorRepository sponsorRepo;
-    private final BusinessOrganizationRepository orgRepo;
-
-    private final EventArtistLinkRepository eventArtistLinkRepo;
-    private final EventSponsorLinkRepository eventSponsorLinkRepo;
-    private final EventOrganizerLinkRepository eventOrganizerLinkRepo;
-
-    // ===========================
-    // CREATE
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse create(CreateEventRequest req) {
-        // 1) Unique eventCode
-        if (eventRepo.existsByEventCode(req.getEventCode())) {
-            throw new IllegalArgumentException("eventCode already exists: " + req.getEventCode());
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Entity
+@Table(
+        name = "tickets",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_ticket_qr_code", columnNames = "qr_code")
+                // The OneToOne relationship to event_seat_id now guarantees uniqueness per seat per event.
+        },
+        indexes = {
+                @Index(name = "idx_ticket_buyer", columnList = "buyer_id"),
+                @Index(name = "idx_ticket_status", columnList = "status")
         }
+)
+public class TicketEntity {
 
-        // 2) Time sanity
-        if (req.getEventStart() == null || req.getEventEnd() == null || !req.getEventEnd().isAfter(req.getEventStart())) {
-            throw new IllegalArgumentException("eventEnd must be after eventStart");
-        }
+    @Id @GeneratedValue private UUID id;
 
-        // 3) Venue exists
-        EventVenue venue = venueRepo.findById(req.getVenueId())
-                .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + req.getVenueId()));
+    // This is the core link. A ticket IS the sale of a specific EventSeat.
+    // The unique=true constraint on JoinColumn enforces the OneToOne relationship at the DB level.
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_seat_id", nullable = false, unique = true)
+    private EventSeatEntity eventSeat;
 
-        // 4) Optional seatLayout belongs to venue + capacity
-        Integer capacity = null;
-        UUID seatLayoutId = req.getSeatLayoutId();
-        if (seatLayoutId != null) {
-            SeatLayout layout = seatLayoutRepo.findById(seatLayoutId)
-                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + seatLayoutId));
-            if (layout.getVenue() == null || layout.getVenue().getId() == null ||
-                    !layout.getVenue().getId().equals(venue.getId())) {
-                throw new IllegalArgumentException("Seat layout does not belong to the given venue");
-            }
-            capacity = layout.getTotalCapacity();
-        }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_id", nullable = false)
+    private UserEntity buyer;
 
-        // 5) Staff existence + role checks
-        ensureRole(req.getEventManager(), EnumUserRole.ROLE_EVENT_MANAGER);
-        ensureOneOfRoles(req.getEventOperator1(), EnumUserRole.ROLE_OPERATOR);
-        if (req.getEventOperator2() != null) ensureOneOfRoles(req.getEventOperator2(), EnumUserRole.ROLE_OPERATOR);
+    // lifecycle
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TicketStatus status = TicketStatus.PENDING;
 
-        ensureOneOfRoles(req.getEventChecker1(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
-        if (req.getEventChecker2() != null) ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
+    @Column(name = "reserved_until") private OffsetDateTime reservedUntil;
+    @Column(name = "issued_at") private OffsetDateTime issuedAt;
+    @Column(name = "checked_in_at") private OffsetDateTime checkedInAt;
 
-        // 6) Ticket totals & price sanity
-        int totalTickets = sumNZ(req.getVipTickets(), req.getPlatTickets(), req.getGoldTickets(), req.getSilverTickets());
-        if (capacity != null && totalTickets > capacity) {
-            throw new IllegalArgumentException("Total tickets (" + totalTickets + ") exceed seat layout capacity (" + capacity + ")");
-        }
-        requirePriceIfQty(req.getVipTickets(), req.getVipTicketPrice(), "VIP");
-        requirePriceIfQty(req.getPlatTickets(), req.getPlatTicketPrice(), "PLAT");
-        requirePriceIfQty(req.getGoldTickets(), req.getGoldTicketPrice(), "GOLD");
-        requirePriceIfQty(req.getSilverTickets(), req.getSilverTicketPrice(), "SILVER");
+    // verification
+    @Column(name = "qr_code", nullable = false, unique = true, length = 256)
+    private String qrCode;
+    @Column(name = "verification_code", length = 32)
+    private String verificationCode;
 
-        // 7) Optional associations existence (de-dup + check)
-        List<UUID> artistIds    = ensureExistence(req.getArtistIds(),    artistRepo::existsById, "Artist");
-        List<UUID> sponsorIds   = ensureExistence(req.getSponsorIds(),   sponsorRepo::existsById, "Sponsor");
-        List<UUID> organizerIds = ensureExistence(req.getOrganizerIds(), orgRepo::existsById,     "BusinessOrganization");
+    // holder / staff
+    @Column(name = "holder_name") private String holderName;
+    @Column(name = "holder_email") private String holderEmail;
 
-        // 8) Map DTO -> Entity (BigDecimal in DTO and Entity)
-        EventEntity e = EventEntity.builder()
-                .typeCode(req.getTypeCode())
-                .typeName(req.getTypeName())
-                .eventCode(req.getEventCode())
-                .eventName(req.getEventName())
-                .eventStart(req.getEventStart())
-                .eventEnd(req.getEventEnd())
-                .venueId(venue.getId())
-                .eventManager(req.getEventManager())
-                .eventOperator1(req.getEventOperator1())
-                .eventOperator2(req.getEventOperator2())
-                .eventChecker1(req.getEventChecker1())
-                .eventChecker2(req.getEventChecker2())
-                .vipTickets(req.getVipTickets())           .vipTicketPrice(req.getVipTicketPrice())
-                .vipTicketsSold(0)                         .vipTicketsUsed(0)
-                .platTickets(req.getPlatTickets())         .platTicketPrice(req.getPlatTicketPrice())
-                .platTicketsSold(0)                        .platTicketsUsed(0)
-                .goldTickets(req.getGoldTickets())         .goldTicketPrice(req.getGoldTicketPrice())
-                .goldTicketsSold(0)                        .goldTicketsUsed(0)
-                .silverTickets(req.getSilverTickets())     .silverTicketPrice(req.getSilverTicketPrice())
-                .silverTicketsSold(0)                      .silverTicketsUsed(0)
-                .build();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "checker_id")
+    private UserEntity checker;
 
-        // set seatLayoutId if the field exists (keeps compatibility if not yet added)
-        setIfPresent(e, "seatLayoutId", seatLayoutId);
+    @Column(name = "gate") private String gate;
 
-        // 9) Save event
-        e = eventRepo.save(e);
+    // refunds
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
+    @Column(name = "refunded_at")
+    private OffsetDateTime refundedAt;
 
-        // 10) Save optional association links (capture id once for lambdas)
-        final var eventId = e.getId();
+    // audit / concurrency
+    @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
+    @UpdateTimestamp @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+    @Version @Column(nullable = false) private Long version = 0L;
 
-        if (!artistIds.isEmpty()) {
-            var links = artistIds.stream()
-                    .map(id -> EventArtistLink.builder().eventId(eventId).artistId(id).build())
-                    .toList();
-            eventArtistLinkRepo.saveAll(links);
-        }
-        if (!sponsorIds.isEmpty()) {
-            var links = sponsorIds.stream()
-                    .map(id -> EventSponsorLink.builder().eventId(eventId).sponsorId(id).build())
-                    .toList();
-            eventSponsorLinkRepo.saveAll(links);
-        }
-        if (!organizerIds.isEmpty()) {
-            var links = organizerIds.stream()
-                    .map(id -> EventOrganizerLink.builder().eventId(eventId).orgId(id).build())
-                    .toList();
-            eventOrganizerLinkRepo.saveAll(links);
-        }
+    // Note: The buggy `setRefunedAt` method has been removed.
 
-        // 11) Build response
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
-    }
-
-    // ===========================
-    // GET (by id)
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse get(UUID id) {
-        var e = eventRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
-
-        var artistIds = eventArtistLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventArtistLink::getArtistId)
-                .toList();
-
-        var sponsorIds = eventSponsorLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventSponsorLink::getSponsorId)
-                .toList();
-
-        var organizerIds = eventOrganizerLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventOrganizerLink::getOrgId)
-                .toList();
-
-        UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
-    }
-
-    // ===========================
-    // LIST (paged)
-    // ===========================
-    @Override
-    @Transactional
-    public Page<EventResponse> list(Pageable pageable) {
-        return eventRepo.findAll(pageable).map(ev ->
-                toResponse(ev,
-                        // lazy-load link ids only when needed (simple approach)
-                        eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventArtistLink::getArtistId).toList(),
-                        eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventSponsorLink::getSponsorId).toList(),
-                        eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventOrganizerLink::getOrgId).toList(),
-                        getSeatLayoutIdIfPresent(ev)
-                )
-        );
-    }
-
-    // ===========================
-    // UPDATE (partial)
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse update(UUID id, UpdateEventRequest req) {
-        var e = eventRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
-
-        // eventCode uniqueness if provided
-        if (req.getEventCode() != null) {
-            eventRepo.findByEventCode(req.getEventCode()).ifPresent(existing -> {
-                if (!existing.getId().equals(id)) {
-                    throw new IllegalArgumentException("eventCode already exists: " + req.getEventCode());
-                }
-            });
-            e.setEventCode(req.getEventCode());
-        }
-
-        // schedule
-        if (req.getEventStart() != null) e.setEventStart(req.getEventStart());
-        if (req.getEventEnd() != null)   e.setEventEnd(req.getEventEnd());
-        if (e.getEventStart() != null && e.getEventEnd() != null && !e.getEventEnd().isAfter(e.getEventStart())) {
-            throw new IllegalArgumentException("eventEnd must be after eventStart");
-        }
-
-        // identity
-        if (req.getTypeCode() != null) e.setTypeCode(req.getTypeCode());
-        if (req.getTypeName() != null) e.setTypeName(req.getTypeName());
-        if (req.getEventName() != null) e.setEventName(req.getEventName());
-
-        // venue & seat layout
-        if (req.getVenueId() != null) {
-            venueRepo.findById(req.getVenueId())
-                    .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + req.getVenueId()));
-            e.setVenueId(req.getVenueId());
-        }
-        Integer capacity = null;
-        if (req.getSeatLayoutId() != null) {
-            var layout = seatLayoutRepo.findById(req.getSeatLayoutId())
-                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + req.getSeatLayoutId()));
-            if (!layout.getVenue().getId().equals(e.getVenueId())) {
-                throw new IllegalArgumentException("Seat layout does not belong to current venue");
-            }
-            capacity = layout.getTotalCapacity();
-            setIfPresent(e, "seatLayoutId", req.getSeatLayoutId());
-        }
-
-        // staffing (validate roles if changing)
-        if (req.getEventManager() != null)    { ensureRole(req.getEventManager(), EnumUserRole.ROLE_EVENT_MANAGER); e.setEventManager(req.getEventManager()); }
-        if (req.getEventOperator1() != null)  { ensureOneOfRoles(req.getEventOperator1(), EnumUserRole.ROLE_OPERATOR); e.setEventOperator1(req.getEventOperator1()); }
-        if (req.getEventOperator2() != null)  { ensureOneOfRoles(req.getEventOperator2(), EnumUserRole.ROLE_OPERATOR); e.setEventOperator2(req.getEventOperator2()); }
-        if (req.getEventChecker1() != null)   { ensureOneOfRoles(req.getEventChecker1(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER); e.setEventChecker1(req.getEventChecker1()); }
-        if (req.getEventChecker2() != null)   { ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER); e.setEventChecker2(req.getEventChecker2()); }
-
-        // tickets/prices (replace only if provided)
-        if (req.getVipTickets() != null)        e.setVipTickets(req.getVipTickets());
-        if (req.getVipTicketPrice() != null)    e.setVipTicketPrice(req.getVipTicketPrice());
-        if (req.getPlatTickets() != null)       e.setPlatTickets(req.getPlatTickets());
-        if (req.getPlatTicketPrice() != null)   e.setPlatTicketPrice(req.getPlatTicketPrice());
-        if (req.getGoldTickets() != null)       e.setGoldTickets(req.getGoldTickets());
-        if (req.getGoldTicketPrice() != null)   e.setGoldTicketPrice(req.getGoldTicketPrice());
-        if (req.getSilverTickets() != null)     e.setSilverTickets(req.getSilverTickets());
-        if (req.getSilverTicketPrice() != null) e.setSilverTicketPrice(req.getSilverTicketPrice());
-
-        // capacity check if known
-        if (capacity != null) {
-            int total = nz(e.getVipTickets()) + nz(e.getPlatTickets()) + nz(e.getGoldTickets()) + nz(e.getSilverTickets());
-            if (total > capacity) throw new IllegalArgumentException("Total tickets (" + total + ") exceed capacity (" + capacity + ")");
-        }
-
-        // price sanity
-        requirePriceIfQty(e.getVipTickets(),    e.getVipTicketPrice(),    "VIP");
-        requirePriceIfQty(e.getPlatTickets(),   e.getPlatTicketPrice(),   "PLAT");
-        requirePriceIfQty(e.getGoldTickets(),   e.getGoldTicketPrice(),   "GOLD");
-        requirePriceIfQty(e.getSilverTickets(), e.getSilverTicketPrice(), "SILVER");
-
-        // Save event first (for id/version)
-        e = eventRepo.save(e);
-
-        // Replace associations only if present in request (null = no change, empty = clear)
-        final var eventId = e.getId();
-
-        if (req.getArtistIds() != null) {
-            var ids = ensureExistence(req.getArtistIds(), artistRepo::existsById, "Artist");
-            var existing = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).toList();
-            eventArtistLinkRepo.deleteAll(existing);
-            if (!ids.isEmpty()) {
-                eventArtistLinkRepo.saveAll(ids.stream().map(aid -> EventArtistLink.builder().eventId(eventId).artistId(aid).build()).toList());
-            }
-        }
-        if (req.getSponsorIds() != null) {
-            var ids = ensureExistence(req.getSponsorIds(), sponsorRepo::existsById, "Sponsor");
-            var existing = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).toList();
-            eventSponsorLinkRepo.deleteAll(existing);
-            if (!ids.isEmpty()) {
-                eventSponsorLinkRepo.saveAll(ids.stream().map(sid -> EventSponsorLink.builder().eventId(eventId).sponsorId(sid).build()).toList());
-            }
-        }
-        if (req.getOrganizerIds() != null) {
-            var ids = ensureExistence(req.getOrganizerIds(), orgRepo::existsById, "BusinessOrganization");
-            var existing = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).toList();
-            eventOrganizerLinkRepo.deleteAll(existing);
-            if (!ids.isEmpty()) {
-                eventOrganizerLinkRepo.saveAll(ids.stream().map(oid -> EventOrganizerLink.builder().eventId(eventId).orgId(oid).build()).toList());
-            }
-        }
-
-        // Build final response
-        var artistIds = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventArtistLink::getArtistId).toList();
-        var sponsorIds = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventSponsorLink::getSponsorId).toList();
-        var organizerIds = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventOrganizerLink::getOrgId).toList();
-        UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
-
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId);
-    }
-
-    // ===========================
-    // DELETE
-    // ===========================
-    @Override
-    @Transactional
-    public void delete(UUID id) {
-        if (!eventRepo.existsById(id)) throw new IllegalArgumentException("Event not found: " + id);
-
-        // delete link rows first (simple approach without custom repo methods)
-        var a = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        var s = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        var o = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        eventArtistLinkRepo.deleteAll(a);
-        eventSponsorLinkRepo.deleteAll(s);
-        eventOrganizerLinkRepo.deleteAll(o);
-
-        eventRepo.deleteById(id);
-    }
-
-    // ===========================
-    // Helpers
-    // ===========================
-
-    // De-dup the list, verify each id exists via the provided existsFn, or throw.
-// Returns the unique ids in insertion order.
-    private List<UUID> ensureExistence(List<UUID> ids,
-                                       java.util.function.Function<UUID, Boolean> existsFn,
-                                       String label) {
-        if (ids == null || ids.isEmpty()) return List.of();
-        var unique = new LinkedHashSet<>(ids);
-        var missing = unique.stream()
-                .filter(id -> !Boolean.TRUE.equals(existsFn.apply(id)))
-                .toList();
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException(label + " ids not found: " + missing);
-        }
-        return new ArrayList<>(unique);
-    }
-
-    private void ensureRole(UUID userId, EnumUserRole expected) {
-        UserEntity u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        if (u.getRole() != expected) {
-            throw new IllegalArgumentException("User " + userId + " must have role " + expected.name());
-        }
-    }
-
-    private void ensureOneOfRoles(UUID userId, EnumUserRole... allowed) {
-        UserEntity u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        boolean ok = Arrays.stream(allowed).anyMatch(r -> r == u.getRole());
-        if (!ok) {
-            String allowedStr = Arrays.stream(allowed).map(Enum::name).collect(Collectors.joining(", "));
-            throw new IllegalArgumentException("User " + userId + " must have role in [" + allowedStr + "]");
-        }
-    }
-
-    private int sumNZ(Integer... vals) {
-        int s = 0; for (Integer v : vals) s += (v == null ? 0 : v); return s;
-    }
-
-    private int nz(Integer v){ return v==null?0:v; }
-
-    private void requirePriceIfQty(Integer qty, BigDecimal price, String label) {
-        if (qty != null && qty > 0 && (price == null || price.signum() < 0)) {
-            throw new IllegalArgumentException(label + " price must be provided and >= 0 when quantity > 0");
-        }
-    }
-
-    private void setIfPresent(Object target, String fieldName, Object value) {
-        if (value == null) return;
-        try {
-            var f = target.getClass().getDeclaredField(fieldName);
-            f.setAccessible(true);
-            f.set(target, value);
-        } catch (NoSuchFieldException ignored) {
-        } catch (Exception ex) {
-            throw new RuntimeException("Failed to set " + fieldName + ": " + ex.getMessage(), ex);
-        }
-    }
-
-    private UUID getSeatLayoutIdIfPresent(EventEntity e) {
-        try {
-            var f = EventEntity.class.getDeclaredField("seatLayoutId");
-            f.setAccessible(true);
-            return (UUID) f.get(e);
-        } catch (Exception ignore) { return null; }
-    }
-
-    private EventResponse toResponse(EventEntity e,
-                                     List<UUID> artistIds,
-                                     List<UUID> sponsorIds,
-                                     List<UUID> organizerIds,
-                                     UUID seatLayoutId) {
-        return EventResponse.builder()
-                .id(e.getId())
-                .typeCode(e.getTypeCode())
-                .typeName(e.getTypeName())
-                .eventCode(e.getEventCode())
-                .eventName(e.getEventName())
-                .eventStart(e.getEventStart())
-                .eventEnd(e.getEventEnd())
-                .venueId(e.getVenueId())
-                .seatLayoutId(seatLayoutId)
-                .eventManager(e.getEventManager())
-                .eventOperator1(e.getEventOperator1())
-                .eventOperator2(e.getEventOperator2())
-                .eventChecker1(e.getEventChecker1())
-                .eventChecker2(e.getEventChecker2())
-                .vipTickets(e.getVipTickets())     .vipTicketPrice(e.getVipTicketPrice())
-                .platTickets(e.getPlatTickets())   .platTicketPrice(e.getPlatTicketPrice())
-                .goldTickets(e.getGoldTickets())   .goldTicketPrice(e.getGoldTicketPrice())
-                .silverTickets(e.getSilverTickets()).silverTicketPrice(e.getSilverTicketPrice())
-                .artistIds(artistIds)
-                .sponsorIds(sponsorIds)
-                .organizerIds(organizerIds)
-                .build();
-    }
+    public enum TicketStatus { PENDING, ISSUED, USED, CANCELED, EXPIRED, REFUNDED }
 }

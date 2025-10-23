@@ -1,31 +1,39 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getEvents, deleteEvent, Page } from '@/services/eventService';
+import { listEvents, deleteEvent, Page } from '@/services/eventService';
 import { getVenues } from '@/services/venueService';
 import { Event } from '@/types/event';
 import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateRange, formatTime } from '@/lib/utils/dateUtils';
 
-interface EnrichedEvent extends Event {
+type EnrichedEvent = Event & {
   venueName: string;
   venueAddress: string;
-}
+};
 
 const EventsPage = () => {
   const [eventPage, setEventPage] = useState<Page<EnrichedEvent>>();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
       try {
+        console.log('Fetching events for page:', currentPage);
         const [eventsPageData, venuesData] = await Promise.all([
-          getEvents(currentPage, 10),
+          listEvents(currentPage, 10),
           getVenues(),
         ]);
+
+        console.log('Events data from API:', eventsPageData);
+        console.log('Venues data from API:', venuesData);
 
         const venuesMap = new Map(venuesData.map((v) => [v.id, v]));
 
@@ -35,9 +43,13 @@ const EventsPage = () => {
           venueAddress: venuesMap.get(event.venueId)?.address || 'N/A',
         }));
 
+        console.log('Enriched events:', enrichedEvents);
         setEventPage({ ...eventsPageData, content: enrichedEvents });
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
+      } catch (err: any) {
+        console.error("Failed to fetch data:", err);
+        setError(`Failed to load events: ${err.message || 'Unknown error'}`);
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -48,7 +60,7 @@ const EventsPage = () => {
       try {
         await deleteEvent(id);
         // Refetch the current page
-        const eventsPageData = await getEvents(currentPage, 10);
+        const eventsPageData = await listEvents(currentPage, 10);
         const venuesData = await getVenues();
         const venuesMap = new Map(venuesData.map((v) => [v.id, v]));
         const enrichedEvents = eventsPageData.content.map((event) => ({
@@ -58,8 +70,9 @@ const EventsPage = () => {
         }));
         setEventPage({ ...eventsPageData, content: enrichedEvents });
 
-      } catch (error) {
-        console.error("Failed to delete event:", error);
+      } catch (err: any) {
+        console.error("Failed to delete event:", err);
+        alert(`Failed to delete event: ${err.message || 'Unknown error'}`);
       }
     }
   };
@@ -72,6 +85,9 @@ const EventsPage = () => {
       event.venueName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.venueAddress.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  console.log('Current eventPage state:', eventPage);
+  console.log('Filtered events for rendering:', filteredEvents);
 
   return (
     <div className="container mx-auto p-8">
@@ -102,56 +118,61 @@ const EventsPage = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Event</th>
-              <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Venue</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Start Time</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">End Time</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Code</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredEvents?.map((event) => (
-              <tr key={event.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{event.eventName}</div>
-                  <div className="text-xs text-gray-500">{event.typeName}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{event.venueName}</div>
-                  <div className="text-xs text-gray-500">{event.venueAddress}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
-                  {formatDateRange(new Date(event.eventStart), new Date(event.eventEnd))}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
-                  {formatTime(new Date(event.eventStart))}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
-                  {formatTime(new Date(event.eventEnd))}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{event.eventCode}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
-                  <button onClick={() => router.push(`/admin/events/${event.id}`)} className="p-2 text-green-600 rounded-full transition" title="View"><Eye size={18} /></button>
-                  <button onClick={() => router.push(`/admin/events/${event.id}/edit`)} className="p-2 text-blue-600 rounded-full transition" title="Edit"><Edit size={18} /></button>
-                  <button onClick={() => handleDelete(event.id)} className="p-2 text-red-600 rounded-full transition" title="Delete"><Trash2 size={18} /></button>
-                </td>
+      {error && <div className="text-red-600 p-4 bg-red-100 border border-red-400 rounded mb-4">{error}</div>}
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500">Loading events...</div>
+      ) : (
+        <div className="bg-white overflow-hidden">
+          <table className="min-w-full">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Event</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Venue</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Start Time</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">End Time</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Code</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {(!filteredEvents || filteredEvents.length === 0) && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No events found.</p>
-          </div>
-        )}
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredEvents?.map((event) => (
+                <tr key={event.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-bold text-gray-900">{event.eventName}</div>
+                    <div className="text-xs text-gray-500">{event.typeName}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-bold text-gray-900">{event.venueName}</div>
+                    <div className="text-xs text-gray-500">{event.venueAddress}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                    {formatDateRange(new Date(event.eventStart), new Date(event.eventEnd))}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                    {formatTime(new Date(event.eventStart))}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">
+                    {formatTime(new Date(event.eventEnd))}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{event.eventCode}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
+                    <button onClick={() => router.push(`/admin/events/${event.id}`)} className="p-2 text-green-600 rounded-full transition" title="View"><Eye size={18} /></button>
+                    <button onClick={() => router.push(`/admin/events/${event.id}/edit`)} className="p-2 text-blue-600 rounded-full transition" title="Edit"><Edit size={18} /></button>
+                    <button onClick={() => handleDelete(event.id)} className="p-2 text-red-600 rounded-full transition" title="Delete"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(!filteredEvents || filteredEvents.length === 0) && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No events found.</p>
+            </div>
+          )}
+        </div>
+      )}
       {/* Pagination */}
         <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
             <div className="flex flex-1 justify-between sm:hidden">
