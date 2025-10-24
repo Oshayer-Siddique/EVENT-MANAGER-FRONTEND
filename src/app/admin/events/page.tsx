@@ -45,9 +45,13 @@ const EventsPage = () => {
 
         console.log('Enriched events:', enrichedEvents);
         setEventPage({ ...eventsPageData, content: enrichedEvents });
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch data:", err);
-        setError(`Failed to load events: ${err.message || 'Unknown error'}`);
+        if (err instanceof Error) {
+            setError(`Failed to load events: ${err.message}`);
+        } else {
+            setError('An unknown error occurred');
+        }
       } finally {
         setLoading(false);
       }
@@ -70,9 +74,13 @@ const EventsPage = () => {
         }));
         setEventPage({ ...eventsPageData, content: enrichedEvents });
 
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to delete event:", err);
-        alert(`Failed to delete event: ${err.message || 'Unknown error'}`);
+        if (err instanceof Error) {
+            alert(`Failed to delete event: ${err.message}`);
+        } else {
+            alert('An unknown error occurred');
+        }
       }
     }
   };

@@ -152,29 +152,29 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                     <div className="lg:col-span-2 space-y-8">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-blue-600">Event Details</CardTitle>
-                                <CardDescription className="text-blue-600">Provide the core details of your event.</CardDescription>
+                                <CardTitle className="text-black">Event Details</CardTitle>
+                                <CardDescription className="text-black">Provide the core details of your event.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputField label="Event Name" id="eventName"  labelClassName="text-blue-600" register={register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" error={errors.eventName} />
-                                    <InputField label="Event Code" id="eventCode"  labelClassName="text-blue-600" register={register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" error={errors.eventCode} />
+                                    <InputField label="Event Name" id="eventName"  labelClassName="text-black" register={register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" error={errors.eventName} />
+                                    <InputField label="Event Code" id="eventCode"  labelClassName="text-black" register={register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" error={errors.eventCode} />
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputField label="Type Code" id="typeCode" labelClassName="text-blue-600" register={register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" error={errors.typeCode} />
-                                    <InputField label="Type Name" id="typeName" labelClassName="text-blue-600"register={register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" error={errors.typeName} />
+                                    <InputField label="Type Code" id="typeCode" labelClassName="text-black" register={register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" error={errors.typeCode} />
+                                    <InputField label="Type Name" id="typeName" labelClassName="text-black"register={register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" error={errors.typeName} />
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputField label="Start Time" id="eventStart" type="datetime-local" labelClassName="text-blue-600" register={register('eventStart', { required: 'Start time is required' })} error={errors.eventStart} />
-                                    <InputField label="End Time" id="eventEnd" type="datetime-local" labelClassName="text-blue-600"register={register('eventEnd', { required: 'End time is required' })} error={errors.eventEnd} />
+                                    <InputField label="Start Time" id="eventStart" type="datetime-local" labelClassName="text-black" register={register('eventStart', { required: 'Start time is required' })} error={errors.eventStart} />
+                                    <InputField label="End Time" id="eventEnd" type="datetime-local" labelClassName="text-black"register={register('eventEnd', { required: 'End time is required' })} error={errors.eventEnd} />
                                 </div>
                             </CardContent>
                         </Card>
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-blue-600">Venue & Layout</CardTitle>
-                                <CardDescription className="text-blue-600">Select the venue and seating arrangement.</CardDescription>
+                                <CardTitle className="text-black">Venue & Layout</CardTitle>
+                                <CardDescription className="text-black">Select the venue and seating arrangement.</CardDescription>
                             </CardHeader>
                             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {isLoading ? <Skeleton className="h-10 w-full" /> : <Controller
@@ -209,23 +209,23 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-blue-600">Ticketing</CardTitle>
-                                <CardDescription className="text-blue-600">Define ticket tiers for your event.</CardDescription>
+                                <CardTitle className="text-black">Ticketing</CardTitle>
+                                <CardDescription className="text-black">Define ticket tiers for your event.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {fields.map((field, index) => (
                                     <div key={field.id} className="p-4 bg-muted rounded-lg border space-y-4">
                                         <div className="flex justify-between items-center">
-                                            <p className="font-medium text-blue-600">Tier #{index + 1}</p>
+                                            <p className="font-medium text-black">Tier #{index + 1}</p>
                                             <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-red-500 hover:bg-red-100">
                                                 <Trash2 className="h-5 w-5" />
                                             </Button>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <InputField label="Tier Code" labelClassName="text-blue-600" id={`ticketTiers.${index}.tierCode`} register={register(`ticketTiers.${index}.tierCode`, { required: 'Code is required' })} placeholder="VIP" error={errors.ticketTiers?.[index]?.tierCode} />
-                                            <InputField label="Tier Name" labelClassName="text-blue-600" id={`ticketTiers.${index}.tierName`} register={register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" error={errors.ticketTiers?.[index]?.tierName} />
-                                            <InputField label="Quantity" labelClassName="text-blue-600" id={`ticketTiers.${index}.totalQuantity`} type="number" register={register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" error={errors.ticketTiers?.[index]?.totalQuantity} />
-                                            <InputField label="Price" labelClassName="text-blue-600" id={`ticketTiers.${index}.price`} type="number" register={register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" error={errors.ticketTiers?.[index]?.price} />
+                                            <InputField label="Tier Code" labelClassName="text-black" id={`ticketTiers.${index}.tierCode`} register={register(`ticketTiers.${index}.tierCode`, { required: 'Code is required' })} placeholder="VIP" error={errors.ticketTiers?.[index]?.tierCode} />
+                                            <InputField label="Tier Name" labelClassName="text-black" id={`ticketTiers.${index}.tierName`} register={register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" error={errors.ticketTiers?.[index]?.tierName} />
+                                            <InputField label="Quantity" labelClassName="text-black" id={`ticketTiers.${index}.totalQuantity`} type="number" register={register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" error={errors.ticketTiers?.[index]?.totalQuantity} />
+                                            <InputField label="Price" labelClassName="text-black" id={`ticketTiers.${index}.price`} type="number" register={register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" error={errors.ticketTiers?.[index]?.price} />
                                         </div>
                                     </div>
                                 ))}
@@ -241,8 +241,8 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                     <div className="lg:col-span-1 space-y-8">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-blue-600">Event StaffTeam</CardTitle>
-                                <CardDescription className="text-blue-600">Assign event staff.</CardDescription>
+                                <CardTitle className="text-black">Event StaffTeam</CardTitle>
+                                <CardDescription className="text-black">Assign event staff.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 {isLoading ? <Skeleton className="h-10 w-full" /> : <Controller
@@ -313,8 +313,8 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className='text-blue-600'>Media & Promotion</CardTitle>
-                                <CardDescription className='text-blue-600'>Add promotional materials and associations.</CardDescription>
+                                <CardTitle className='text-black'>Media & Promotion</CardTitle>
+                                <CardDescription className='text-black'>Add promotional materials and associations.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <Controller
@@ -359,7 +359,7 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                                         <div className="flex text-sm text-gray-600">
                                                             <label
                                                                 htmlFor="eventImages"
-                                                                className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                                                                className="relative cursor-pointer bg-white rounded-md font-medium text-black hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
                                                             >
                                                                 <span>Select files</span>
                                                                 <input
@@ -393,7 +393,7 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleRemoveImage(index)}
-                                                                    className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white transition-opacity hover:bg-black"
+                                                                    className="absolute top-2 right-2 rounded-full bg-blue/60 p-1 text-white transition-opacity hover:bg-blue"
                                                                 >
                                                                     <X className="h-4 w-4" />
                                                                 </button>
