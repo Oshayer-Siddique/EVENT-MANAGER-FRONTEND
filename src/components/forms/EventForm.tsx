@@ -5,9 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, PlusCircle, Trash2, Upload, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { getVenues, getVenueLayouts } from '@/services/venueService';
 import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
 import { Venue } from '@/types/venue';
@@ -20,7 +20,6 @@ import { getBusinessOrganizations } from '@/services/businessOrganizationService
 import { Artist } from '@/types/artist';
 import { Sponsor } from '@/types/sponsor';
 import { BusinessOrganization } from '@/types/businessOrganization';
-import { ImageUploadField } from '@/components/forms/ImageUploadField';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { ModalCombobox } from '@/components/ui/modal-combobox';
@@ -53,6 +52,7 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     const [artists, setArtists] = useState<Artist[]>([]);
     const [sponsors, setSponsors] = useState<Sponsor[]>([]);
     const [organizers, setOrganizers] = useState<BusinessOrganization[]>([]);
+    const [isImageUploading, setIsImageUploading] = useState(false);
 
     const selectedVenueId = watch('venueId');
 
@@ -101,6 +101,35 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
         }
     }, [selectedVenueId]);
 
+    const uploadEventImages = async (files: FileList): Promise<string[]> => {
+        const uploadedUrls: string[] = [];
+
+        for (const file of Array.from(files)) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', 'EVENT_MANAGEMENT');
+
+            try {
+                const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data?.error?.message ?? 'Failed to upload image');
+                }
+
+                uploadedUrls.push(data.secure_url as string);
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        return uploadedUrls;
+    };
+
     const { fields, append, remove } = useFieldArray({
         control,
         name: "ticketTiers"
@@ -123,8 +152,8 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                     <div className="lg:col-span-2 space-y-8">
                         <Card>
                             <CardHeader>
-                            <CardTitle className="text-blue-600">Event Details</CardTitle>
-                            <CardDescription className="text-blue-600">Provide the core details of your event.</CardDescription>
+                                <CardTitle className="text-blue-600">Event Details</CardTitle>
+                                <CardDescription className="text-blue-600">Provide the core details of your event.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -291,7 +320,90 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                 <Controller
                                     name="imageUrls"
                                     control={control}
-                                    render={({ field }) => <ImageUploadField value={field.value} onChange={field.onChange} />}
+                                    render={({ field }) => {
+                                        const value = field.value ?? [];
+
+                                        const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+                                            const files = event.target.files;
+                                            if (!files?.length) return;
+
+                                            setIsImageUploading(true);
+                                            try {
+                                                const urls = await uploadEventImages(files);
+                                                field.onChange([...value, ...urls]);
+                                            } catch (error) {
+                                                console.error('Cloudinary upload error:', error);
+                                            } finally {
+                                                setIsImageUploading(false);
+                                                event.target.value = '';
+                                            }
+                                        };
+
+                                        const handleRemoveImage = (index: number) => {
+                                            const next = value.filter((_, i) => i !== index);
+                                            field.onChange(next);
+                                        };
+
+                                        return (
+                                            <div>
+                                                <Label htmlFor="eventImages" className="block text-sm font-medium text-gray-700">
+                                                    Upload Event Images
+                                                </Label>
+                                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                                                    <div className="space-y-1 text-center">
+                                                        {isImageUploading ? (
+                                                            <p>Uploading...</p>
+                                                        ) : (
+                                                            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                                                        )}
+                                                        <div className="flex text-sm text-gray-600">
+                                                            <label
+                                                                htmlFor="eventImages"
+                                                                className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                                                            >
+                                                                <span>Select files</span>
+                                                                <input
+                                                                    id="eventImages"
+                                                                    type="file"
+                                                                    multiple
+                                                                    accept="image/*"
+                                                                    className="sr-only"
+                                                                    onChange={handleFilesSelected}
+                                                                />
+                                                            </label>
+                                                            <p className="pl-1">or drag and drop</p>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                                                        {value.length > 0 && (
+                                                            <p className="text-xs text-gray-500">
+                                                                Uploaded {value.length} image{value.length > 1 ? 's' : ''}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {value.length > 0 && (
+                                                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                                        {value.map((url: string, index: number) => (
+                                                            <div key={`${url}-${index}`} className="relative h-32 w-full overflow-hidden rounded-lg border">
+                                                                <img
+                                                                    src={url}
+                                                                    alt={`Event image ${index + 1}`}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveImage(index)}
+                                                                    className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white transition-opacity hover:bg-black"
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }}
                                 />
                                 {isLoading ? <Skeleton className="h-10 w-full" /> : <Controller
                                     name="artistIds"
