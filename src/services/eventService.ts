@@ -1,5 +1,5 @@
 import {apiClient} from "./apiClient";
-import { Event, CreateEventRequest, UpdateEventRequest } from "../types/event";
+import { Event, CreateEventRequest, UpdateEventRequest, EventTicketDetails } from "../types/event";
 
 // Define a generic Page type if it's not already defined globally
 export interface Page<T> {
@@ -23,6 +23,10 @@ export const createEvent = (data: CreateEventRequest): Promise<Event> => {
 
 export const getEvent = (id: string): Promise<Event> => {
     return apiClient(`${EVENT_API_URL}/${id}`);
+};
+
+export const getEventTicketDetails = (id: string): Promise<EventTicketDetails> => {
+    return apiClient(`${EVENT_API_URL}/${id}/ticket-details`);
 };
 
 export const listEvents = (page = 0, size = 20): Promise<Page<Event>> => {
