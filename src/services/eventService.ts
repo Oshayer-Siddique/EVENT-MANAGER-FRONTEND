@@ -1,5 +1,6 @@
-import {apiClient} from "./apiClient";
-import { Event, CreateEventRequest, UpdateEventRequest, EventTicketDetails } from "../types/event";
+import { apiClient } from "./apiClient";
+import { Event, CreateEventRequest, UpdateEventRequest, EventTicketDetails, SeatInventorySyncRequest } from "../types/event";
+import { EventSeat } from "../types/eventSeat";
 
 // Define a generic Page type if it's not already defined globally
 export interface Page<T> {
@@ -44,5 +45,13 @@ export const updateEvent = (id: string, data: UpdateEventRequest): Promise<Event
 export const deleteEvent = (id: string): Promise<void> => {
     return apiClient(`${EVENT_API_URL}/${id}`, {
         method: 'DELETE',
+    });
+};
+
+export const syncEventSeats = (id: string, payload: SeatInventorySyncRequest): Promise<EventSeat[]> => {
+    return apiClient(`${EVENT_API_URL}/${id}/seats/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
 };

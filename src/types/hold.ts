@@ -16,7 +16,7 @@ export interface Hold {
     updatedAt: string; // OffsetDateTime
 }
 
-export interface HoldCreateRequest {
+export interface HoldCreate {
     eventId: string;
     buyerId?: string;
     seatIds: string[];

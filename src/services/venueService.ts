@@ -32,6 +32,10 @@ export const getVenueLayouts = async (venueId: string): Promise<Layout[]> => {
   return apiClient(`/venues/${venueId}/layouts`);
 };
 
+export const getSeatLayoutById = async (layoutId: string): Promise<Layout> => {
+  return apiClient(`/seat-layouts/${layoutId}`);
+};
+
 export const createVenueLayout = async (venueId: string, layout: Omit<Layout, 'id' | 'venueId'>): Promise<Layout> => {
   return apiClient(`/venues/${venueId}/layouts`, {
     method: 'POST',

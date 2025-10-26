@@ -9,6 +9,7 @@ import LayoutPreview from "@/components/previews/LayoutPreview";
 import { 
   ArrowLeft, MapPin, Mail, Phone, Users, Edit, Trash2, PlusSquare, ExternalLink, Building, Globe
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Main component
 const VenueDetailsPage = () => {
@@ -114,7 +115,13 @@ const VenueDetailsPage = () => {
                 </div>
                 {layouts.length > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {layouts.map(layout => <LayoutCard key={layout.id} layout={layout} />)}
+                    {layouts.map(layout => (
+                      <LayoutCard
+                        key={layout.id}
+                        layout={layout}
+                        onManage={() => router.push(`/admin/venue/${venue.id}/layout/${layout.id}`)}
+                      />
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-16 bg-slate-50 rounded-lg">
@@ -201,7 +208,7 @@ const InfoItem = ({ icon: Icon, label, value, href }) => {
     );
 };
 
-const LayoutCard = ({ layout }: { layout: Layout }) => {
+const LayoutCard = ({ layout, onManage }: { layout: Layout; onManage: (layoutId: string) => void }) => {
   const details = [
     {label: 'Capacity', value: layout.totalCapacity},
     layout.totalRows > 0 && {label: 'Rows', value: layout.totalRows},
@@ -238,6 +245,11 @@ const LayoutCard = ({ layout }: { layout: Layout }) => {
           <LayoutPreview {...layout} />
         </div>
       </details>
+      <div className="mt-4 flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => onManage(layout.id)}>
+          Manage Seats
+        </Button>
+      </div>
     </div>
   );
 };

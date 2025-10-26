@@ -1,6 +1,3 @@
-import { Event } from "./event";
-import { Seat } from "./seat"; // Assuming a seat type exists
-
 export enum EventSeatStatus {
     AVAILABLE = 'AVAILABLE',
     RESERVED = 'RESERVED',
@@ -8,12 +5,13 @@ export enum EventSeatStatus {
 }
 
 export interface EventSeat {
-    id: string; // UUID
-    event: Event;
-    seat: Seat;
+    eventSeatId: string; // UUID (EventSeatEntity)
+    seatId: string; // UUID (SeatEntity)
+    label: string;
+    row?: string;
+    number?: number;
+    type?: string;
     status: EventSeatStatus;
     tierCode: string;
-    price: number; // BigDecimal
-    createdAt: string; // OffsetDateTime
-    updatedAt: string; // OffsetDateTime
+    price?: number; // BigDecimal
 }

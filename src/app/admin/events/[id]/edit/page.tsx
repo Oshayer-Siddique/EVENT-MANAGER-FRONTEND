@@ -65,6 +65,8 @@ const EditEventPage = () => {
                 tierName: tier.tierName,
                 totalQuantity: tier.totalQuantity,
                 price: tier.price,
+                cost: tier.cost,
+                visible: tier.visible,
             })),
         };
     };

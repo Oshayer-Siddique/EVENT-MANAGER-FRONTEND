@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Check, ChevronsUpDown, PlusCircle, Trash2, Upload, X } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PlusCircle, Trash2, Upload, X } from 'lucide-react';
 import { ChangeEvent, useEffect, useState } from 'react';
 import { getVenues, getVenueLayouts } from '@/services/venueService';
 import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
@@ -31,9 +30,18 @@ interface EventFormProps {
 }
 
 const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
-    const { register, handleSubmit, control, formState: { errors }, watch, getValues } = useForm<CreateEventRequest>({
+    const {
+        register,
+        handleSubmit,
+        control,
+        watch,
+        setValue,
+        getValues,
+        clearErrors,
+        formState: { errors },
+    } = useForm<CreateEventRequest>({
         defaultValues: initialData || {
-            ticketTiers: [{ tierCode: 'GENERAL', tierName: 'General Admission', totalQuantity: 100, price: 50 }],
+            ticketTiers: [{ tierCode: 'GENERAL', tierName: 'General Admission', totalQuantity: 100, price: 50, cost: 20, visible: true }],
             imageUrls: [],
             artistIds: [],
             sponsorIds: [],
@@ -86,20 +94,34 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     }, []);
 
     useEffect(() => {
-        if (selectedVenueId) {
-            const fetchLayouts = async () => {
-                try {
-                    const layoutsData = await getVenueLayouts(selectedVenueId);
-                    setSeatLayouts(layoutsData);
-                } catch (error) {
-                    console.error('Failed to fetch seat layouts:', error);
-                }
-            };
-            fetchLayouts();
-        } else {
+        if (!selectedVenueId) {
             setSeatLayouts([]);
+            setValue('seatLayoutId', undefined);
+            clearErrors('seatLayoutId');
+            return;
         }
-    }, [selectedVenueId]);
+
+        const fetchLayouts = async () => {
+            try {
+                const layoutsData = await getVenueLayouts(selectedVenueId);
+                const activeLayouts = layoutsData.filter(layout => layout.isActive);
+                setSeatLayouts(activeLayouts);
+
+                const currentSeatLayoutId = getValues('seatLayoutId');
+                if (currentSeatLayoutId && !activeLayouts.some(layout => layout.id === currentSeatLayoutId)) {
+                    setValue('seatLayoutId', undefined);
+                    clearErrors('seatLayoutId');
+                }
+            } catch (error) {
+                console.error('Failed to fetch seat layouts:', error);
+                setSeatLayouts([]);
+                setValue('seatLayoutId', undefined);
+                clearErrors('seatLayoutId');
+            }
+        };
+
+        fetchLayouts();
+    }, [selectedVenueId, getValues, setValue, clearErrors]);
 
     const uploadEventImages = async (files: FileList): Promise<string[]> => {
         const uploadedUrls: string[] = [];
@@ -155,7 +177,7 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                 <CardTitle className="text-black">Event Details</CardTitle>
                                 <CardDescription className="text-black">Provide the core details of your event.</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="space-y-6 text-black">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <InputField label="Event Name" id="eventName"  labelClassName="text-black" register={register('eventName', { required: 'Event name is required' })} placeholder="e.g., Summer Music Festival" error={errors.eventName} />
                                     <InputField label="Event Code" id="eventCode"  labelClassName="text-black" register={register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" error={errors.eventCode} />
@@ -168,6 +190,29 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                     <InputField label="Start Time" id="eventStart" type="datetime-local" labelClassName="text-black" register={register('eventStart', { required: 'Start time is required' })} error={errors.eventStart} />
                                     <InputField label="End Time" id="eventEnd" type="datetime-local" labelClassName="text-black"register={register('eventEnd', { required: 'End time is required' })} error={errors.eventEnd} />
                                 </div>
+<TextareaField
+  id="eventDescription"
+  label="Event Description"
+  register={register('eventDescription')}
+  placeholder="Provide a detailed description of the event..."
+  error={errors.eventDescription}
+  labelClassName = "text-black"
+
+/>
+
+<TextareaField
+  id="privacyPolicy"
+  label="Privacy Policy"
+  register={register('privacyPolicy')}
+  placeholder="Enter the privacy policy for this event..."
+  error={errors.privacyPolicy}
+  labelClassName = "text-black"
+
+/>
+
+
+
+
                             </CardContent>
                         </Card>
 
@@ -199,11 +244,14 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                             options={seatLayouts.map(layout => ({ value: layout.id, label: layout.layoutName }))}
                                             selected={field.value ? [field.value] : []}
                                             onChange={(selected) => field.onChange(selected[0])}
-                                            placeholder="Select Seat Layout"
-                                            disabled={!selectedVenueId}
+                                            placeholder={selectedVenueId ? 'Select Seat Layout' : 'Choose a venue first'}
+                                            disabled={!selectedVenueId || seatLayouts.length === 0}
                                         />
                                     )}
                                 />}
+                                {selectedVenueId && !isLoading && seatLayouts.length === 0 && (
+                                    <p className="text-sm text-muted-foreground">This venue has no active seat layouts yet.</p>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -226,11 +274,16 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                             <InputField label="Tier Name" labelClassName="text-black" id={`ticketTiers.${index}.tierName`} register={register(`ticketTiers.${index}.tierName`, { required: 'Name is required' })} placeholder="VIP Seating" error={errors.ticketTiers?.[index]?.tierName} />
                                             <InputField label="Quantity" labelClassName="text-black" id={`ticketTiers.${index}.totalQuantity`} type="number" register={register(`ticketTiers.${index}.totalQuantity`, { required: 'Quantity is required', valueAsNumber: true })} placeholder="100" error={errors.ticketTiers?.[index]?.totalQuantity} />
                                             <InputField label="Price" labelClassName="text-black" id={`ticketTiers.${index}.price`} type="number" register={register(`ticketTiers.${index}.price`, { required: 'Price is required', valueAsNumber: true })} placeholder="150.00" error={errors.ticketTiers?.[index]?.price} />
+                                            <InputField label="Cost" labelClassName="text-black" id={`ticketTiers.${index}.cost`} type="number" register={register(`ticketTiers.${index}.cost`, { required: 'Cost is required', valueAsNumber: true })} placeholder="50.00" error={errors.ticketTiers?.[index]?.cost} />
+                                            <div className="flex items-center space-x-2 pt-7">
+                                                <input type="checkbox" {...register(`ticketTiers.${index}.visible`)} id={`ticketTiers.${index}.visible`} />
+                                                <Label htmlFor={`ticketTiers.${index}.visible`} className="text-black">Visible</Label>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                                 {fields.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No ticket tiers added yet.</p>}
-                                <Button type="button" variant="outline" onClick={() => append({ tierCode: '', tierName: '', totalQuantity: 0, price: 0 })} className="w-full flex items-center">
+                                <Button type="button" variant="outline" onClick={() => append({ tierCode: '', tierName: '', totalQuantity: 0, price: 0, cost: 0, visible: true })} className="w-full flex items-center">
                                     <PlusCircle className="h-4 w-4 mr-2" />
                                     Add Ticket Tier
                                 </Button>
@@ -497,12 +550,37 @@ const SelectField = ({ id, label, control, rules, error, children, ...props }: a
     </div>
 );
 
-const TextareaField = ({ id, label, register, error, ...props }: any) => (
-    <div className="space-y-1">
-        <Label htmlFor={id} className="font-medium text-foreground">{label}</Label>
-        <Textarea id={id} {...register} {...props} className="w-full" />
-        {error && <p className="text-sm text-red-600">{error.message}</p>}
-    </div>
+// If you have shadcn's cn utility, import it:
+// import { cn } from "@/lib/utils";
+
+const TextareaField = ({
+  id,
+  label,
+  register,
+  error,
+  className,
+  labelClassName,   // 👈 add this
+  ...props
+}: any) => (
+  <div className="space-y-1">
+    <Label
+      htmlFor={id}
+      // put labelClassName LAST so it wins over defaults
+      className={`font-medium ${labelClassName ?? "text-foreground"}`}
+    >
+      {label}
+    </Label>
+    <Textarea
+      id={id}
+      {...register}
+      {...props}
+      className={`w-full bg-white placeholder-slate-500 border border-slate-300
+        focus-visible:ring-blue-500 focus-visible:border-blue-500 ${className ?? ""}`}
+    />
+    {error && <p className="text-sm text-red-600">{error.message}</p>}
+  </div>
 );
+
+
 
 export default EventForm;

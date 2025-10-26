@@ -1,3 +1,144 @@
+package com.oshayer.event_manager.ticketing.controller;
+
+import com.oshayer.event_manager.ticketing.dto.*;
+import com.oshayer.event_manager.ticketing.service.TicketService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/tickets")
+@RequiredArgsConstructor
+public class TicketController {
+
+    private final TicketService ticketService;
+
+    @PostMapping("/reserve")
+    public ResponseEntity<TicketResponse> reserve(@Valid @RequestBody TicketCreateRequest req) {
+        return ResponseEntity.ok(ticketService.createPending(req));
+    }
+
+    @PostMapping("/issue/{ticketId}")
+    public ResponseEntity<TicketResponse> issue(@PathVariable java.util.UUID ticketId) {
+        return ResponseEntity.ok(ticketService.issue(ticketId));
+    }
+
+    @PostMapping("/checkin/{ticketId}")
+    public ResponseEntity<TicketResponse> checkIn(@PathVariable java.util.UUID ticketId,
+                                                  @Valid @RequestBody TicketCheckInRequest req) {
+        return ResponseEntity.ok(ticketService.checkIn(ticketId, req));
+    }
+
+    @PostMapping("/refund/{ticketId}")
+    public ResponseEntity<TicketResponse> refund(@PathVariable java.util.UUID ticketId,
+                                                 @Valid @RequestBody TicketRefundRequest req) {
+        return ResponseEntity.ok(ticketService.refund(ticketId, req));
+    }
+
+    @GetMapping("/{ticketId}")
+    public ResponseEntity<TicketResponse> get(@PathVariable java.util.UUID ticketId) {
+        return ResponseEntity.ok(ticketService.get(ticketId));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TicketResponse>> listTickets(
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) UUID buyerId
+    ) {
+        if (eventId != null) {
+            return ResponseEntity.ok(ticketService.listByEvent(eventId));
+        }
+        if (buyerId != null) {
+            return ResponseEntity.ok(ticketService.listByBuyer(buyerId));
+        }
+        // Consider returning a 400 Bad Request if no filter is provided, or defaulting to all tickets if that's desired.
+        return ResponseEntity.ok(Collections.emptyList());
+    }
+}
+
+
+package com.oshayer.event_manager.ticketing.controller;
+
+import com.oshayer.event_manager.ticketing.dto.*;
+import com.oshayer.event_manager.ticketing.service.ReservationHoldService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/holds")
+@RequiredArgsConstructor
+public class ReservationHoldController {
+
+    private final ReservationHoldService holdService;
+
+    @PostMapping
+    public ResponseEntity<HoldResponse> create(@Valid @RequestBody HoldCreateRequest req) {
+        return ResponseEntity.ok(holdService.create(req));
+    }
+
+    @PostMapping("/release")
+    public ResponseEntity<HoldResponse> release(@Valid @RequestBody HoldReleaseRequest req) {
+        return ResponseEntity.ok(holdService.release(req));
+    }
+
+    @PostMapping("/convert")
+    public ResponseEntity<HoldResponse> convert(@Valid @RequestBody HoldConvertRequest req) {
+        return ResponseEntity.ok(holdService.convert(req));
+    }
+
+    @GetMapping("/{holdId}")
+    public ResponseEntity<HoldResponse> get(@PathVariable java.util.UUID holdId) {
+        return ResponseEntity.ok(holdService.get(holdId));
+    }
+
+    @GetMapping("/events/{eventId}")
+    public ResponseEntity<List<HoldResponse>> listActive(@PathVariable java.util.UUID eventId) {
+        return ResponseEntity.ok(holdService.listActive(eventId));
+    }
+}
+
+
+package com.oshayer.event_manager.events.controller;
+
+import com.oshayer.event_manager.events.dto.CreateEventRequest;
+import com.oshayer.event_manager.events.dto.EventResponse;
+import com.oshayer.event_manager.events.dto.EventTicketDetailsResponse;
+import com.oshayer.event_manager.events.dto.UpdateEventRequest;
+import com.oshayer.event_manager.events.service.EventService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/events")
+@RequiredArgsConstructor
+public class EventController {
+
+    private final EventService eventService;
+
+    // CREATE
+    @PostMapping
+    public ResponseEntity<EventResponse> create(@Valid @RequestBody CreateEventRequest req) {
+        EventResponse created = eventService.create(req);
+        return ResponseEntity
+                .created(URI.create("/api/events/" + created.getId()))
+                .body(created);
+    }
+
     // GET (by id)
     @GetMapping("/{id}")
     public ResponseEntity<EventResponse> get(@PathVariable UUID id) {
@@ -10,622 +151,243 @@
         return ResponseEntity.ok(eventService.getTicketDetails(id));
     }
 
+    // LIST (paged)
+    @GetMapping
+    public ResponseEntity<Page<EventResponse>> list(
+            @PageableDefault(size = 20, sort = "eventStart") Pageable pageable) {
+        return ResponseEntity.ok(eventService.list(pageable));
+    }
 
+    // UPDATE (full/partial via PUT – your UpdateEventRequest is partial-friendly)
+    @PutMapping("/{id}")
+    public ResponseEntity<EventResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateEventRequest req) {
+        return ResponseEntity.ok(eventService.update(id, req));
+    }
 
-package com.oshayer.event_manager.events.service;
+    // DELETE
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        eventService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}
 
-import com.oshayer.event_manager.events.dto.CreateEventRequest;
-import com.oshayer.event_manager.events.dto.EventResponse;
-import com.oshayer.event_manager.events.dto.EventTicketDetailsResponse;
-import com.oshayer.event_manager.events.dto.UpdateEventRequest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+package com.oshayer.event_manager.ticketing.dto;
 
+import jakarta.validation.constraints.*;
+import lombok.*;
 import java.util.UUID;
 
-public interface EventService {
-    EventResponse create(CreateEventRequest request);
-    EventResponse get(UUID id);
-    EventTicketDetailsResponse getTicketDetails(UUID id);
-    Page<EventResponse> list(Pageable pageable); // simple listing; can add filters later
-    EventResponse update(UUID id, UpdateEventRequest request);
-    void delete(UUID id);
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldConvertRequest {
+    @NotNull private UUID holdId;
+    @NotNull private UUID paymentId;
+}
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldCreateRequest {
+    @NotNull private UUID eventId;
+    private UUID buyerId; // nullable = guest allowed
+
+    @NotEmpty
+    private List<UUID> seatIds; // The specific seats to be held
+
+    @Future @NotNull private OffsetDateTime expiresAt;
 }
 
 
-package com.oshayer.event_manager.events.service.impl;
 
-import com.oshayer.event_manager.artists.repository.ArtistRepository;
-import com.oshayer.event_manager.business_organizations.repository.BusinessOrganizationRepository;
-import com.oshayer.event_manager.events.dto.*;
-import com.oshayer.event_manager.events.entity.*;
-import com.oshayer.event_manager.events.repository.*;
-import com.oshayer.event_manager.events.service.EventService;
-import com.oshayer.event_manager.seat.entity.SeatLayout;
-import com.oshayer.event_manager.seat.repository.SeatLayoutRepository;
-import com.oshayer.event_manager.sponsors.repository.SponsorRepository;
-import com.oshayer.event_manager.users.entity.EnumUserRole;
-import com.oshayer.event_manager.users.entity.UserEntity;
-import com.oshayer.event_manager.users.repository.UserRepository;
-import com.oshayer.event_manager.venues.entity.EventVenue;
-import com.oshayer.event_manager.venues.repository.EventVenueRepository;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldReleaseRequest {
+    @NotNull private UUID holdId;
+    private String reason;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HoldResponse {
+    private UUID id;
+    private UUID eventId;
+    private UUID buyerId;
+    private String status;
+    private List<HeldSeatInfo> heldSeats;
+    private OffsetDateTime expiresAt;
+    private UUID finalizedPaymentId;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class HeldSeatInfo {
+        private UUID seatId;
+        private String seatLabel;
+        private String tierCode;
+    }
+}
+
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketCheckInRequest {
+    @NotNull private UUID checkerId;
+    private String gate;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketCreateRequest {
+    @NotNull private UUID eventId;
+    @NotNull private UUID seatId; // The ID of the desired SeatEntity
+    @NotNull private UUID buyerId;
+
+    // Optional reservation time for pending tickets
+    private OffsetDateTime reservedUntil;
+
+    // Optional holder info if different from buyer
+    private String holderName;
+    @Email private String holderEmail;
+}
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.math.BigDecimal;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketRefundRequest {
+    @NotNull @DecimalMin("0.00")
+    private BigDecimal refundAmount;
+}
+
+
+
+package com.oshayer.event_manager.ticketing.dto;
+
+import lombok.*;
 
 import java.math.BigDecimal;
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-@Service
-@RequiredArgsConstructor
-public class EventServiceImpl implements EventService {
-
-    private final EventRepository eventRepo;
-    private final EventVenueRepository venueRepo;
-    private final SeatLayoutRepository seatLayoutRepo;
-
-    private final UserRepository userRepo;
-
-    private final ArtistRepository artistRepo;
-    private final SponsorRepository sponsorRepo;
-    private final BusinessOrganizationRepository orgRepo;
-
-    private final EventArtistLinkRepository eventArtistLinkRepo;
-    private final EventSponsorLinkRepository eventSponsorLinkRepo;
-    private final EventTicketTierRepository eventTicketTierRepo;
-    private final EventOrganizerLinkRepository eventOrganizerLinkRepo;
-
-    // ===========================
-    // CREATE
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse create(CreateEventRequest req) {
-        // 1) Unique eventCode
-        if (eventRepo.existsByEventCode(req.getEventCode())) {
-            throw new IllegalArgumentException("eventCode already exists: " + req.getEventCode());
-        }
-
-        // 2) Time sanity
-        if (req.getEventStart() == null || req.getEventEnd() == null || !req.getEventEnd().isAfter(req.getEventStart())) {
-            throw new IllegalArgumentException("eventEnd must be after eventStart");
-        }
-
-        // 3) Venue exists
-        EventVenue venue = venueRepo.findById(req.getVenueId())
-                .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + req.getVenueId()));
-
-        // 4) Optional seatLayout belongs to venue + capacity
-        Integer capacity = null;
-        UUID seatLayoutId = req.getSeatLayoutId();
-        if (seatLayoutId != null) {
-            SeatLayout layout = seatLayoutRepo.findById(seatLayoutId)
-                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + seatLayoutId));
-            if (layout.getVenue() == null || layout.getVenue().getId() == null ||
-                    !layout.getVenue().getId().equals(venue.getId())) {
-                throw new IllegalArgumentException("Seat layout does not belong to the given venue");
-            }
-            capacity = layout.getTotalCapacity();
-        }
-
-        // 5) Staff existence + role checks
-        ensureRole(req.getEventManager(), EnumUserRole.ROLE_EVENT_MANAGER);
-        ensureOneOfRoles(req.getEventOperator1(), EnumUserRole.ROLE_OPERATOR);
-        if (req.getEventOperator2() != null) ensureOneOfRoles(req.getEventOperator2(), EnumUserRole.ROLE_OPERATOR);
-
-        ensureOneOfRoles(req.getEventChecker1(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
-        if (req.getEventChecker2() != null) ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER);
-
-        // 6) Ticket totals & price sanity (using new EventTicketTier)
-        if (req.getTicketTiers() == null || req.getTicketTiers().isEmpty()) {
-            throw new IllegalArgumentException("At least one ticket tier must be provided.");
-        }
-        int totalTickets = req.getTicketTiers().stream()
-                .mapToInt(CreateEventTicketTierRequest::getTotalQuantity)
-                .sum();
-        if (capacity != null && totalTickets > capacity) {
-            throw new IllegalArgumentException("Total tickets (" + totalTickets + ") exceed seat layout capacity (" + capacity + ")");
-        }
-        req.getTicketTiers().forEach(tier -> {
-            if (tier.getTotalQuantity() <= 0) throw new IllegalArgumentException("Ticket tier quantity must be positive.");
-            if (tier.getPrice().compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException("Ticket tier price must be non-negative.");
-        });
-
-        // 7) Optional associations existence (de-dup + check)
-        List<UUID> artistIds    = ensureExistence(req.getArtistIds(),    artistRepo::existsById, "Artist");
-        List<UUID> sponsorIds   = ensureExistence(req.getSponsorIds(),   sponsorRepo::existsById, "Sponsor");
-        List<UUID> organizerIds = ensureExistence(req.getOrganizerIds(), orgRepo::existsById,     "BusinessOrganization");
-
-        // 8) Map DTO -> Entity
-        EventEntity e = EventEntity.builder()
-                .typeCode(req.getTypeCode())
-                .typeName(req.getTypeName())
-                .eventCode(req.getEventCode())
-                .eventName(req.getEventName())
-                .eventStart(req.getEventStart())
-                .eventEnd(req.getEventEnd())
-                .venueId(venue.getId())
-                .eventManager(req.getEventManager())
-                .eventOperator1(req.getEventOperator1())
-                .eventOperator2(req.getEventOperator2())
-                .eventChecker1(req.getEventChecker1())
-                .eventChecker2(req.getEventChecker2())
-                .imageUrls(req.getImageUrls())
-                .build();
-
-        // set seatLayoutId if the field exists (keeps compatibility if not yet added)
-        setIfPresent(e, "seatLayoutId", seatLayoutId);
-
-        // 9) Save event
-        e = eventRepo.save(e);
-
-        // 10) Save EventTicketTiers
-        final var eventId = e.getId();
-        List<EventTicketTier> tiers = req.getTicketTiers().stream()
-                .map(tierReq -> EventTicketTier.builder()
-                        .eventId(eventId)
-                        .tierCode(tierReq.getTierCode())
-                        .tierName(tierReq.getTierName())
-                        .totalQuantity(tierReq.getTotalQuantity())
-                        .price(tierReq.getPrice())
-                        .build())
-                .toList();
-        eventTicketTierRepo.saveAll(tiers);
-
-        // 11) Save optional association links (capture id once for lambdas)
-        if (!artistIds.isEmpty()) {
-            var links = artistIds.stream()
-                    .map(id -> EventArtistLink.builder().eventId(eventId).artistId(id).build())
-                    .toList();
-            eventArtistLinkRepo.saveAll(links);
-        }
-        if (!sponsorIds.isEmpty()) {
-            var links = sponsorIds.stream()
-                    .map(id -> EventSponsorLink.builder().eventId(eventId).sponsorId(id).build())
-                    .toList();
-            eventSponsorLinkRepo.saveAll(links);
-        }
-        if (!organizerIds.isEmpty()) {
-            var links = organizerIds.stream()
-                    .map(id -> EventOrganizerLink.builder().eventId(eventId).orgId(id).build())
-                    .toList();
-            eventOrganizerLinkRepo.saveAll(links);
-        }
-
-        // 12) Build response
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, tiers);
-    }
-
-    // ===========================
-    // GET (by id)
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse get(UUID id) {
-        var e = eventRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
-
-        var artistIds = eventArtistLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventArtistLink::getArtistId)
-                .toList();
-
-        var sponsorIds = eventSponsorLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventSponsorLink::getSponsorId)
-                .toList();
-
-        var organizerIds = eventOrganizerLinkRepo.findAll().stream()
-                .filter(l -> l.getEventId().equals(id))
-                .map(EventOrganizerLink::getOrgId)
-                .toList();
-
-        var ticketTiers = eventTicketTierRepo.findByEventId(id);
-
-        UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, ticketTiers);
-    }
-
-    @Override
-    @Transactional
-    public EventTicketDetailsResponse getTicketDetails(UUID id) {
-        var event = eventRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
-
-        var ticketTierEntities = eventTicketTierRepo.findByEventId(id);
-        var ticketTiers = ticketTierEntities.stream()
-                .map(this::toTicketTierResponse)
-                .toList();
-
-        var seatLayout = Optional.ofNullable(getSeatLayoutIdIfPresent(event))
-                .map(seatLayoutId -> seatLayoutRepo.findById(seatLayoutId)
-                        .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + seatLayoutId)))
-                .map(this::toSeatLayoutSummary)
-                .orElse(null);
-
-        return EventTicketDetailsResponse.builder()
-                .eventId(event.getId())
-                .ticketTiers(ticketTiers)
-                .imageUrls(event.getImageUrls())
-                .seatLayout(seatLayout)
-                .build();
-    }
-
-    // ===========================
-    // LIST (paged)
-    // ===========================
-    @Override
-    @Transactional
-    public Page<EventResponse> list(Pageable pageable) {
-        return eventRepo.findAll(pageable).map(ev -> {
-            var artistIds = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventArtistLink::getArtistId).toList();
-            var sponsorIds = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventSponsorLink::getSponsorId).toList();
-            var organizerIds = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(ev.getId())).map(EventOrganizerLink::getOrgId).toList();
-            var ticketTiers = eventTicketTierRepo.findByEventId(ev.getId());
-            return toResponse(ev, artistIds, sponsorIds, organizerIds, getSeatLayoutIdIfPresent(ev), ticketTiers);
-        });
-    }
-
-    // ===========================
-    // UPDATE (partial)
-    // ===========================
-    @Override
-    @Transactional
-    public EventResponse update(UUID id, UpdateEventRequest req) {
-        var e = eventRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
-
-        // eventCode uniqueness if provided
-        if (req.getEventCode() != null) {
-            eventRepo.findByEventCode(req.getEventCode()).ifPresent(existing -> {
-                if (!existing.getId().equals(id)) {
-                    throw new IllegalArgumentException("eventCode already exists: " + req.getEventCode());
-                }
-            });
-            e.setEventCode(req.getEventCode());
-        }
-
-        // schedule
-        if (req.getEventStart() != null) e.setEventStart(req.getEventStart());
-        if (req.getEventEnd() != null)   e.setEventEnd(req.getEventEnd());
-        if (e.getEventStart() != null && e.getEventEnd() != null && !e.getEventEnd().isAfter(e.getEventStart())) {
-            throw new IllegalArgumentException("eventEnd must be after eventStart");
-        }
-
-        // identity
-        if (req.getTypeCode() != null) e.setTypeCode(req.getTypeCode());
-        if (req.getTypeName() != null) e.setTypeName(req.getTypeName());
-        if (req.getEventName() != null) e.setEventName(req.getEventName());
-
-        // venue & seat layout
-        if (req.getVenueId() != null) {
-            venueRepo.findById(req.getVenueId())
-                    .orElseThrow(() -> new IllegalArgumentException("Venue not found: " + req.getVenueId()));
-            e.setVenueId(req.getVenueId());
-        }
-        Integer capacity = null;
-        if (req.getSeatLayoutId() != null) {
-            var layout = seatLayoutRepo.findById(req.getSeatLayoutId())
-                    .orElseThrow(() -> new IllegalArgumentException("Seat layout not found: " + req.getSeatLayoutId()));
-            if (!layout.getVenue().getId().equals(e.getVenueId())) {
-                throw new IllegalArgumentException("Seat layout does not belong to current venue");
-            }
-            capacity = layout.getTotalCapacity();
-            setIfPresent(e, "seatLayoutId", req.getSeatLayoutId());
-        }
-
-        // staffing (validate roles if changing)
-        if (req.getEventManager() != null)    { ensureRole(req.getEventManager(), EnumUserRole.ROLE_EVENT_MANAGER); e.setEventManager(req.getEventManager()); }
-        if (req.getEventOperator1() != null)  { ensureOneOfRoles(req.getEventOperator1(), EnumUserRole.ROLE_OPERATOR); e.setEventOperator1(req.getEventOperator1()); }
-        if (req.getEventOperator2() != null)  { ensureOneOfRoles(req.getEventOperator2(), EnumUserRole.ROLE_OPERATOR); e.setEventOperator2(req.getEventOperator2()); }
-        if (req.getEventChecker1() != null)   { ensureOneOfRoles(req.getEventChecker1(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER); e.setEventChecker1(req.getEventChecker1()); }
-        if (req.getEventChecker2() != null)   { ensureOneOfRoles(req.getEventChecker2(), EnumUserRole.ROLE_OPERATOR, EnumUserRole.ROLE_EVENT_CHECKER); e.setEventChecker2(req.getEventChecker2()); }
-
-        // tickets/prices (replace only if provided)
-        if (req.getTicketTiers() != null) {
-            // Fetch existing tiers
-            List<EventTicketTier> existingTiers = eventTicketTierRepo.findByEventId(id);
-            Map<String, EventTicketTier> existingTiersMap = existingTiers.stream()
-                    .collect(Collectors.toMap(EventTicketTier::getTierCode, Function.identity()));
-
-            List<EventTicketTier> tiersToSave = new ArrayList<>();
-            List<EventTicketTier> tiersToDelete = new ArrayList<>();
-
-            // Process incoming tiers
-            for (UpdateEventTicketTierRequest tierReq : req.getTicketTiers()) {
-                EventTicketTier existingTier = existingTiersMap.remove(tierReq.getTierCode());
-                if (existingTier != null) {
-                    // Update existing tier
-                    if (tierReq.getTierName() != null) existingTier.setTierName(tierReq.getTierName());
-                    if (tierReq.getTotalQuantity() != null) existingTier.setTotalQuantity(tierReq.getTotalQuantity());
-                    if (tierReq.getPrice() != null) existingTier.setPrice(tierReq.getPrice());
-                    tiersToSave.add(existingTier);
-                } else {
-                    // Create new tier
-                    tiersToSave.add(EventTicketTier.builder()
-                            .eventId(id)
-                            .tierCode(tierReq.getTierCode())
-                            .tierName(tierReq.getTierName())
-                            .totalQuantity(tierReq.getTotalQuantity())
-                            .price(tierReq.getPrice())
-                            .build());
-                }
-            }
-            // Remaining tiers in existingTiersMap are to be deleted
-            tiersToDelete.addAll(existingTiersMap.values());
-
-            eventTicketTierRepo.deleteAll(tiersToDelete);
-            eventTicketTierRepo.saveAll(tiersToSave);
-
-            // Re-calculate capacity check if tiers were updated
-            int total = tiersToSave.stream().mapToInt(EventTicketTier::getTotalQuantity).sum();
-            if (capacity != null && total > capacity) {
-                throw new IllegalArgumentException("Total tickets (" + total + ") exceed capacity (" + capacity + ")");
-            }
-        }
-
-        // Save event first (for id/version)
-        e = eventRepo.save(e);
-
-        // Replace associations only if present in request (null = no change, empty = clear)
-        final var eventId = e.getId();
-
-        if (req.getArtistIds() != null) {
-            var requested = new LinkedHashSet<>(ensureExistence(
-                    req.getArtistIds(),
-                    artistRepo::existsById,
-                    "Artist"));
-
-            var existingLinks = eventArtistLinkRepo.findByEventId(eventId);
-            var existingIds = existingLinks.stream()
-                    .map(EventArtistLink::getArtistId)
-                    .collect(Collectors.toSet());
-
-            var toInsert = requested.stream()
-                    .filter(artistId -> !existingIds.contains(artistId))
-                    .map(artistId -> EventArtistLink.builder()
-                            .eventId(eventId)
-                            .artistId(artistId)
-                            .build())
-                    .toList();
-
-            var toDelete = existingLinks.stream()
-                    .filter(link -> !requested.contains(link.getArtistId()))
-                    .toList();
-
-            if (!toDelete.isEmpty()) {
-                eventArtistLinkRepo.deleteAllInBatch(toDelete);
-            }
-            if (!toInsert.isEmpty()) {
-                eventArtistLinkRepo.saveAll(toInsert);
-            }
-        }
-        if (req.getSponsorIds() != null) {
-            var requested = new LinkedHashSet<>(ensureExistence(
-                    req.getSponsorIds(),
-                    sponsorRepo::existsById,
-                    "Sponsor"));
-
-            var existingLinks = eventSponsorLinkRepo.findByEventId(eventId);
-            var existingIds = existingLinks.stream()
-                    .map(EventSponsorLink::getSponsorId)
-                    .collect(Collectors.toSet());
-
-            var toInsert = requested.stream()
-                    .filter(sponsorId -> !existingIds.contains(sponsorId))
-                    .map(sponsorId -> EventSponsorLink.builder()
-                            .eventId(eventId)
-                            .sponsorId(sponsorId)
-                            .build())
-                    .toList();
-
-            var toDelete = existingLinks.stream()
-                    .filter(link -> !requested.contains(link.getSponsorId()))
-                    .toList();
-
-            if (!toDelete.isEmpty()) {
-                eventSponsorLinkRepo.deleteAllInBatch(toDelete);
-            }
-            if (!toInsert.isEmpty()) {
-                eventSponsorLinkRepo.saveAll(toInsert);
-            }
-        }
-        if (req.getOrganizerIds() != null) {
-            var requested = new LinkedHashSet<>(ensureExistence(
-                    req.getOrganizerIds(),
-                    orgRepo::existsById,
-                    "BusinessOrganization"));
-
-            var existingLinks = eventOrganizerLinkRepo.findByEventId(eventId);
-            var existingIds = existingLinks.stream()
-                    .map(EventOrganizerLink::getOrgId)
-                    .collect(Collectors.toSet());
-
-            var toInsert = requested.stream()
-                    .filter(orgId -> !existingIds.contains(orgId))
-                    .map(orgId -> EventOrganizerLink.builder()
-                            .eventId(eventId)
-                            .orgId(orgId)
-                            .build())
-                    .toList();
-
-            var toDelete = existingLinks.stream()
-                    .filter(link -> !requested.contains(link.getOrgId()))
-                    .toList();
-
-            if (!toDelete.isEmpty()) {
-                eventOrganizerLinkRepo.deleteAllInBatch(toDelete);
-            }
-            if (!toInsert.isEmpty()) {
-                eventOrganizerLinkRepo.saveAll(toInsert);
-            }
-        }
-
-        // Update image URLs if provided
-        if (req.getImageUrls() != null) {
-            e.setImageUrls(req.getImageUrls());
-        }
-
-        // Build final response
-        var artistIds = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventArtistLink::getArtistId).toList();
-        var sponsorIds = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventSponsorLink::getSponsorId).toList();
-        var organizerIds = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(eventId)).map(EventOrganizerLink::getOrgId).toList();
-        var ticketTiers = eventTicketTierRepo.findByEventId(eventId);
-        UUID seatLayoutId = getSeatLayoutIdIfPresent(e);
-
-        return toResponse(e, artistIds, sponsorIds, organizerIds, seatLayoutId, ticketTiers);
-    }
-
-    // ===========================
-    // DELETE
-    // ===========================
-    @Override
-    @Transactional
-    public void delete(UUID id) {
-        if (!eventRepo.existsById(id)) throw new IllegalArgumentException("Event not found: " + id);
-
-        // delete link rows first (simple approach without custom repo methods)
-        var a = eventArtistLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        var s = eventSponsorLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        var o = eventOrganizerLinkRepo.findAll().stream().filter(l -> l.getEventId().equals(id)).toList();
-        eventArtistLinkRepo.deleteAll(a);
-        eventSponsorLinkRepo.deleteAll(s);
-        eventOrganizerLinkRepo.deleteAll(o);
-        eventTicketTierRepo.deleteAllByEventId(id);
-
-        eventRepo.deleteById(id);
-    }
-
-    // ===========================
-    // Helpers
-    // ===========================
-
-    // De-dup the list, verify each id exists via the provided existsFn, or throw.
-// Returns the unique ids in insertion order.
-    // De-dup the list, verify each id exists via the provided existsFn, or throw.
-// Returns the unique ids in insertion order.
-    private List<UUID> ensureExistence(List<UUID> ids,
-                                       java.util.function.Function<UUID, Boolean> existsFn,
-                                       String label) {
-        if (ids == null || ids.isEmpty()) return List.of();
-        var unique = new LinkedHashSet<>(ids);
-        var missing = unique.stream()
-                .filter(id -> !Boolean.TRUE.equals(existsFn.apply(id)))
-                .toList();
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException(label + " ids not found: " + missing);
-        }
-        return new ArrayList<>(unique);
-    }
-
-    private void ensureRole(UUID userId, EnumUserRole expected) {
-        UserEntity u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        if (u.getRole() != expected) {
-            throw new IllegalArgumentException("User " + userId + " must have role " + expected.name());
-        }
-    }
-
-    private void ensureOneOfRoles(UUID userId, EnumUserRole... allowed) {
-        UserEntity u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        boolean ok = Arrays.stream(allowed).anyMatch(r -> r == u.getRole());
-        if (!ok) {
-            String allowedStr = Arrays.stream(allowed).map(Enum::name).collect(Collectors.joining(", "));
-            throw new IllegalArgumentException("User " + userId + " must have role in [" + allowedStr + "]");
-        }
-    }
-
-    private void setIfPresent(Object target, String fieldName, Object value) {
-        if (value == null) return;
-        try {
-            var f = target.getClass().getDeclaredField(fieldName);
-            f.setAccessible(true);
-            f.set(target, value);
-        } catch (NoSuchFieldException ignored) {
-        } catch (Exception ex) {
-            throw new RuntimeException("Failed to set " + fieldName + ": " + ex.getMessage(), ex);
-        }
-    }
-
-    private UUID getSeatLayoutIdIfPresent(EventEntity e) {
-        try {
-            var f = EventEntity.class.getDeclaredField("seatLayoutId");
-            f.setAccessible(true);
-            return (UUID) f.get(e);
-        } catch (Exception ignore) { return null; }
-    }
-
-    private EventResponse toResponse(EventEntity e,
-                                     List<UUID> artistIds,
-                                     List<UUID> sponsorIds,
-                                     List<UUID> organizerIds,
-                                     UUID seatLayoutId,
-                                     List<EventTicketTier> ticketTiers) {
-        return EventResponse.builder()
-                .id(e.getId())
-                .typeCode(e.getTypeCode())
-                .typeName(e.getTypeName())
-                .eventCode(e.getEventCode())
-                .eventName(e.getEventName())
-                .eventStart(e.getEventStart())
-                .eventEnd(e.getEventEnd())
-                .venueId(e.getVenueId())
-                .seatLayoutId(seatLayoutId)
-                .eventManager(e.getEventManager())
-                .eventOperator1(e.getEventOperator1())
-                .eventOperator2(e.getEventOperator2())
-                .eventChecker1(e.getEventChecker1())
-                .eventChecker2(e.getEventChecker2())
-                .artistIds(artistIds)
-                .sponsorIds(sponsorIds)
-                .organizerIds(organizerIds)
-                .imageUrls(e.getImageUrls())
-                .ticketTiers(ticketTiers.stream()
-                        .map(this::toTicketTierResponse)
-                        .toList())
-                .build();
-    }
-
-    private EventTicketTierResponse toTicketTierResponse(EventTicketTier tier) {
-        return EventTicketTierResponse.builder()
-                .id(tier.getId())
-                .tierCode(tier.getTierCode())
-                .tierName(tier.getTierName())
-                .totalQuantity(tier.getTotalQuantity())
-                .price(tier.getPrice())
-                .soldQuantity(tier.getSoldQuantity())
-                .usedQuantity(tier.getUsedQuantity())
-                .build();
-    }
-
-    private SeatLayoutSummaryResponse toSeatLayoutSummary(SeatLayout layout) {
-        return SeatLayoutSummaryResponse.builder()
-                .id(layout.getId())
-                .typeCode(layout.getTypeCode())
-                .typeName(layout.getTypeName())
-                .layoutName(layout.getLayoutName())
-                .totalRows(layout.getTotalRows())
-                .totalCols(layout.getTotalCols())
-                .totalTables(layout.getTotalTables())
-                .chairsPerTable(layout.getChairsPerTable())
-                .standingCapacity(layout.getStandingCapacity())
-                .totalCapacity(layout.getTotalCapacity())
-                .active(layout.getIsActive())
-                .build();
-    }
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketResponse {
+    private UUID id;
+    private String status;
+
+    // Flattened from related entities for convenience
+    private UUID eventId;
+    private UUID buyerId;
+    private UUID seatId;
+    private String seatLabel;
+    private String tierCode;
+    private BigDecimal price;
+
+    // Verification and Holder Info
+    private String qrCode;
+    private String verificationCode;
+    private String holderName;
+    private String holderEmail;
+
+    // Check-in Info
+    private String gate;
+    private UUID checkerId;
+    private OffsetDateTime checkedInAt;
+
+    // Lifecycle Timestamps
+    private OffsetDateTime reservedUntil;
+    private OffsetDateTime issuedAt;
+
+    // Refund Info
+    private BigDecimal refundAmount;
+    private OffsetDateTime refundedAt;
+
+    // Audit Timestamps
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }
-
-
 
 package com.oshayer.event_manager.events.dto;
 
 import lombok.*;
-import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -638,10 +400,13 @@ public class EventResponse {
     private String typeName;
     private String eventCode;
     private String eventName;
+    private String eventDescription;
+    private String privacyPolicy;
     private ZonedDateTime eventStart;
     private ZonedDateTime eventEnd;
 
     private UUID venueId;
+    private String venueName;
     private UUID seatLayoutId;
 
     private UUID eventManager;
@@ -659,6 +424,55 @@ public class EventResponse {
     private List<UUID> sponsorIds;
 
 }
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class CreateEventTicketTierRequest {
+    @NotBlank private String tierCode;
+    @NotBlank private String tierName;
+    @NotNull @PositiveOrZero private Integer totalQuantity;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    @Builder.Default private Boolean visible = Boolean.TRUE;
+}
+
+
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class UpdateEventTicketTierRequest {
+    private UUID id; // ID is needed to identify which tier to update
+    private String tierCode;
+    private String tierName;
+    @PositiveOrZero private Integer totalQuantity;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    private Boolean visible;
+}
+
 
 package com.oshayer.event_manager.events.dto;
 
@@ -682,9 +496,34 @@ public class EventTicketDetailsResponse {
 }
 
 
+package com.oshayer.event_manager.events.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
+public class CreateEventTicketTierRequest {
+    @NotBlank private String tierCode;
+    @NotBlank private String tierName;
+    @NotNull @PositiveOrZero private Integer totalQuantity;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @NotNull @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    @Builder.Default private Boolean visible = Boolean.TRUE;
+}
+
 
 package com.oshayer.event_manager.events.dto;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -694,40 +533,14 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class EventTicketTierResponse {
-    private UUID id;
+public class UpdateEventTicketTierRequest {
+    private UUID id; // ID is needed to identify which tier to update
     private String tierCode;
     private String tierName;
-    private Integer totalQuantity;
-    private BigDecimal price;
-    private Integer soldQuantity;
-    private Integer usedQuantity;
+    @PositiveOrZero private Integer totalQuantity;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal price;
+    @DecimalMin(value = "0.0", inclusive = true) private BigDecimal cost;
+    private Boolean visible;
 }
 
 
-package com.oshayer.event_manager.events.dto;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.UUID;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class SeatLayoutSummaryResponse {
-    private UUID id;
-    private String typeCode;
-    private String typeName;
-    private String layoutName;
-    private Integer totalRows;
-    private Integer totalCols;
-    private Integer totalTables;
-    private Integer chairsPerTable;
-    private Integer standingCapacity;
-    private Integer totalCapacity;
-    private Boolean active;
-}

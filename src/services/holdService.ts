@@ -1,37 +1,40 @@
-import { apiClient } from "./apiClient";
-import { Hold, HoldCreateRequest, HoldReleaseRequest, HoldConvertRequest } from "../types/hold";
+import { apiClient } from './apiClient';
+import { Hold, HoldCreate } from '@/types/hold';
 
-const HOLD_API_URL = "/api/holds";
+const HOLD_API_URL = '/holds';
 
-export const createHold = (data: HoldCreateRequest): Promise<Hold> => {
-    return apiClient(HOLD_API_URL, {
+const holdService = {
+  createHold(holdCreate: HoldCreate): Promise<Hold> {
+    return apiClient(`${HOLD_API_URL}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(holdCreate),
     });
-};
+  },
 
-export const releaseHold = (data: HoldReleaseRequest): Promise<Hold> => {
+  releaseHold(holdId: string): Promise<Hold> {
     return apiClient(`${HOLD_API_URL}/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ holdId }),
     });
-};
+  },
 
-export const convertHold = (data: HoldConvertRequest): Promise<Hold> => {
+  convertHold(holdId: string, paymentId: string): Promise<Hold> {
     return apiClient(`${HOLD_API_URL}/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ holdId, paymentId }),
     });
-};
+  },
 
-export const getHold = (holdId: string): Promise<Hold> => {
+  getHold(holdId: string): Promise<Hold> {
     return apiClient(`${HOLD_API_URL}/${holdId}`);
-};
+  },
 
-export const listActiveHoldsByEvent = (eventId: string): Promise<Hold[]> => {
+  getActiveHoldsForEvent(eventId: string): Promise<Hold[]> {
     return apiClient(`${HOLD_API_URL}/events/${eventId}`);
+  },
 };
 
+export default holdService;

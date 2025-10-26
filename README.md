@@ -16,21 +16,12 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Ticket Purchase Flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Navigate to an event detail page (`/events/:eventId`). The hero section includes full event metadata, ticket tiers, and a rich seat map grouped by section and row.
+2. Pick available seats (green). Selections appear in the reservation summary card, including tier names and live pricing. You can clear any seat inline or continue browsing the venue layout by tier, section, or row.
+3. Click **Proceed to Checkout** to reserve the seats. The frontend calls `/api/holds` to create a 15-minute reservation window and forwards you to `/checkout?holdId=...`.
+4. Confirm the reservation on the checkout page. You will see the held seats, total price, and a countdown. Use **Pay & Issue Tickets** to convert the hold (mock payment identifier) via `/api/holds/convert`, or **Release Hold** to give the seats back to inventory.
+5. After conversion you are redirected to `/profile/tickets`, where issued tickets can be managed.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All API calls are proxied through `src/services/*` using `apiClient`, which automatically attaches the JWT stored in `localStorage`.
