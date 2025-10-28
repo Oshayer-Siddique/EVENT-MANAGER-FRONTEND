@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ['res.cloudinary.com'],
+    domains: ['res.cloudinary.com', 'melange.com', 'arianasmith.com'],
   },
   eslint: {
     // Warning: This allows production builds to successfully complete even if

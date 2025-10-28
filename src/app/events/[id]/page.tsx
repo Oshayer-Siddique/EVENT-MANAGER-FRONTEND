@@ -1,36 +1,76 @@
 'use client';
 
-import { useEffect, useMemo, useState, use } from 'react';
+import { useEffect, useMemo, useRef, useState, use } from 'react';
+import type { ComponentType, MouseEvent, ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, Clock, MapPin, ChevronDown, ShoppingCart, Loader2, X } from 'lucide-react';
+import {
+  CalendarDays,
+  Clock,
+  MapPin,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ShoppingCart,
+  Loader2,
+  X,
+  Phone,
+  Mail,
+  Globe,
+  Facebook,
+  Instagram,
+  Youtube,
+  Linkedin,
+  Share2,
+  Twitter,
+  Link as LinkIcon,
+} from 'lucide-react';
 
-import { getEvent, getEventTicketDetails } from '../../../services/eventService';
-import { getVenueById } from '../../../services/venueService';
-import holdService from '../../../services/holdService';
+import { getEvent, getEventTicketDetails, listEvents } from '@/services/eventService';
+import { getBusinessOrganizationById } from '@/services/businessOrganizationService';
+import { getArtistById } from '@/services/artistService';
+import { getVenueById } from '@/services/venueService';
+import holdService from '@/services/holdService';
 
-import type { Event, EventTicketDetails, EventTicketTier } from '../../../types/event';
-import type { Venue } from '../../../types/venue';
-import { Button } from '../../../components/ui/button';
+import type { Event, EventTicketDetails, EventTicketTier } from '@/types/event';
+import type { BusinessOrganization } from '@/types/businessOrganization';
+import type { Artist } from '@/types/artist';
+import type { Venue } from '@/types/venue';
+import { Button } from '@/components/ui/button';
 
-import { EventSeat } from '../../../types/eventSeat';
-import SeatMap from '../../../components/booking/SeatMap';
+import { EventSeat } from '@/types/eventSeat';
+import SeatMap from '@/components/booking/SeatMap';
 
 interface EventDetailPageProps {
   params: { id: string };
 }
 
 const FALLBACK_HERO = '/concert.jpg';
+const ORGANIZER_PLACEHOLDER = '/globe.svg';
+const CARD_BASE_CLASS = 'rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60';
 
 // Simple accordion using <details>/<summary>
-const Accordion = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <details className="group rounded-lg border border-gray-200 bg-white">
-    <summary className="flex cursor-pointer items-center justify-between p-4 font-semibold text-gray-800">
+const Accordion = ({
+  title,
+  children,
+  defaultOpen = false,
+  className = '',
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+}) => (
+  <details
+    className={`group overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/60 transition hover:-translate-y-[1px] hover:shadow-xl focus-within:shadow-xl ${className}`}
+    {...(defaultOpen ? { open: true } : {})}
+  >
+    <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-slate-900 outline-none transition group-open:bg-slate-50">
       {title}
-      <ChevronDown className="h-5 w-5 transition-transform group-open:rotate-180" />
+      <ChevronDown className="h-5 w-5 flex-shrink-0 text-slate-500 transition-transform duration-200 group-open:rotate-180" />
     </summary>
-    <div className="p-4 pt-0 text-gray-600">{children}</div>
+    <div className="px-5 pb-5 pt-0 text-sm leading-relaxed text-slate-600">{children}</div>
   </details>
 );
 
@@ -46,8 +86,17 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const [selectedSeats, setSelectedSeats] = useState<EventSeat[]>([]);
   const [isCreatingHold, setIsCreatingHold] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+  const [organizers, setOrganizers] = useState<BusinessOrganization[]>([]);
+  const [loadingOrganizers, setLoadingOrganizers] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const router = useRouter();
+  const suggestionsScrollRef = useRef<HTMLDivElement | null>(null);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [loadingArtists, setLoadingArtists] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -83,6 +132,108 @@ function EventDetailPage({ params }: EventDetailPageProps) {
       interrupted = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    setShareUrl(window.location.href);
+  }, []);
+
+  useEffect(() => {
+    if (!event) {
+      return;
+    }
+
+    let interrupted = false;
+
+    const loadUpcoming = async () => {
+      setLoadingUpcoming(true);
+      try {
+        const upcomingPage = await listEvents(0, 20);
+        if (interrupted) return;
+
+        const now = Date.now();
+        const suggestions = upcomingPage.content
+          .filter(item => item.id !== event.id && new Date(item.eventStart).getTime() >= now)
+          .sort((a, b) => new Date(a.eventStart).getTime() - new Date(b.eventStart).getTime())
+          .slice(0, 8);
+
+        setUpcomingEvents(suggestions);
+      } catch (upcomingError) {
+        if (interrupted) return;
+        console.error('Failed to load upcoming events', upcomingError);
+        setUpcomingEvents([]);
+      } finally {
+        if (!interrupted) {
+          setLoadingUpcoming(false);
+        }
+      }
+    };
+
+    const loadOrganizers = async () => {
+      setLoadingOrganizers(true);
+      try {
+        if (!event.organizerIds || event.organizerIds.length === 0) {
+          if (!interrupted) {
+            setOrganizers([]);
+          }
+          return;
+        }
+
+        const results = await Promise.all(
+          event.organizerIds.map(organizerId =>
+            getBusinessOrganizationById(organizerId).catch(error => {
+              console.error('Failed to load organizer', organizerId, error);
+              return null;
+            }),
+          ),
+        );
+
+        if (!interrupted) {
+          setOrganizers(results.filter(Boolean) as BusinessOrganization[]);
+        }
+      } finally {
+        if (!interrupted) {
+          setLoadingOrganizers(false);
+        }
+      }
+    };
+
+    const loadArtists = async () => {
+      if (!event.artistIds || event.artistIds.length === 0) {
+        setArtists([]);
+        return;
+      }
+
+      setLoadingArtists(true);
+      try {
+        const results = await Promise.all(
+          event.artistIds.map(artistId =>
+            getArtistById(artistId).catch(error => {
+              console.error('Failed to load artist', artistId, error);
+              return null;
+            }),
+          ),
+        );
+        if (!interrupted) {
+          setArtists(results.filter(Boolean) as Artist[]);
+        }
+      } finally {
+        if (!interrupted) {
+          setLoadingArtists(false);
+        }
+      }
+    };
+
+    loadUpcoming();
+    loadOrganizers();
+    loadArtists();
+
+    return () => {
+      interrupted = true;
+    };
+  }, [event]);
 
   const tiers: EventTicketTier[] = useMemo(() => {
     return ticketDetails?.ticketTiers ?? event?.ticketTiers ?? [];
@@ -171,6 +322,56 @@ function EventDetailPage({ params }: EventDetailPageProps) {
     return filters;
   }, [event, tiers]);
 
+  const sharePlatforms = useMemo(() => {
+    if (!shareUrl) {
+      return [] as Array<{ name: string; href: string; icon: ComponentType<{ className?: string }>; color: string }>;
+    }
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(`Check out ${event?.eventName ?? 'this event'} via Event Manager`);
+    return [
+      {
+        name: 'Facebook',
+        href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+        icon: Facebook,
+        color: 'hover:border-blue-600 hover:text-blue-600',
+      },
+      {
+        name: 'Twitter',
+        href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
+        icon: Twitter,
+        color: 'hover:border-sky-500 hover:text-sky-500',
+      },
+      {
+        name: 'LinkedIn',
+        href: `https://www.linkedin.com/shareArticle?mini=true&url=${encodedUrl}&title=${encodedText}`,
+        icon: Linkedin,
+        color: 'hover:border-blue-500 hover:text-blue-500',
+      },
+      {
+        name: 'Instagram',
+        href: 'https://www.instagram.com/',
+        icon: Instagram,
+        color: 'hover:border-pink-500 hover:text-pink-500',
+      },
+      {
+        name: 'Copy Link',
+        href: '#',
+        icon: LinkIcon,
+        color: 'hover:border-slate-600 hover:text-slate-700',
+      },
+    ];
+  }, [shareUrl, event?.eventName]);
+
+  const handleSuggestionScroll = (direction: 'left' | 'right') => {
+    const container = suggestionsScrollRef.current;
+    if (!container) return;
+    const scrollAmount = container.clientWidth * 0.7;
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
@@ -197,6 +398,46 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const heroImage = heroImages.length > 0 ? heroImages[0] : FALLBACK_HERO;
   const eventDate = new Date(event.eventStart);
   const eventEndDate = new Date(event.eventEnd);
+  const isSameDayEvent = eventDate.toDateString() === eventEndDate.toDateString();
+  const dateRangeLabel = isSameDayEvent
+    ? eventDate.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : `${eventDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })} – ${eventEndDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })}`;
+  const timeRangeLabel = `${eventDate.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} - ${eventEndDate.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+  const venueName = venue?.venueName ?? 'Venue TBA';
+  const venueAddress = venue?.address ?? null;
+  const handleCopyShareLink = async (copyEvent?: MouseEvent<HTMLAnchorElement>) => {
+    copyEvent?.preventDefault();
+    if (!shareUrl || typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy share link', error);
+    }
+  };
 
   const filteredTiers = tiers.filter(tier => {
     if (tierFilter === 'All') return true;
@@ -210,177 +451,539 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   });
 
   return (
-    <div className="bg-white text-gray-800">
-      <main className="mx-auto max-w-6xl p-4 sm:p-6">
-        <div className="relative mb-6 aspect-[16/7] w-full overflow-hidden">
-          <Image src={heroImage} alt={event.eventName} fill priority className="object-cover" />
-        </div>
-
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-black">{event.eventName}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-              <span className="flex items-center gap-1.5">
-                <MapPin className="h-4 w-4" /> {venue?.venueName ?? 'Venue TBA'}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4" />
-                {eventDate.toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
-                {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
-                {eventEndDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+      <header className="border-b border-slate-900/60 bg-slate-950/95 text-slate-100 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 text-sm sm:px-6">
+          <Link href="/" className="text-base font-semibold text-slate-100">
+            Event Manager
+          </Link>
+          <nav className="hidden items-center gap-5 text-slate-300 md:flex">
+            <Link href="/events#events-grid" className="transition hover:text-white">
+              Events
+            </Link>
+            <a href="#ticket-tiers" className="transition hover:text-white">
+              Tickets
+            </a>
+            <a href="#seat-map" className="transition hover:text-white">
+              Seat Map
+            </a>
+            <a href="#contact-footer" className="transition hover:text-white">
+              Contact
+            </a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link href="/signin" className="text-sm font-medium text-slate-300 transition hover:text-white">
+              Sign in
+            </Link>
+            <Link
+              href="/signup"
+              className="hidden rounded-full border border-slate-100/20 bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-white sm:inline-flex"
+            >
+              Create account
+            </Link>
           </div>
         </div>
+      </header>
 
-        <div className="space-y-6">
-          <Accordion title="Event Description">
-            <p className="whitespace-pre-wrap">
-              {event.eventDescription || 'Details for this event will be available soon.'}
-            </p>
-          </Accordion>
-          <Accordion title="Privacy Policy">
-            <p className="whitespace-pre-wrap">
-              {event.privacyPolicy || 'All ticket sales are final. Please review our terms and conditions for more details regarding event policies, cancellations, and refunds. Your privacy is important to us.'}
-            </p>
-          </Accordion>
+      <section className="relative isolate overflow-hidden bg-slate-900">
+        <div className="absolute inset-0">
+          <Image src={heroImage} alt={event.eventName} fill priority className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/80 to-slate-900/40" />
         </div>
+        <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 py-16 sm:px-6 sm:py-20">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-medium uppercase tracking-wide text-slate-200/80">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 backdrop-blur-sm">
+              <CalendarDays className="h-4 w-4" /> {dateRangeLabel}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 backdrop-blur-sm">
+              <Clock className="h-4 w-4" /> {timeRangeLabel}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 backdrop-blur-sm">
+              <MapPin className="h-4 w-4" /> {venueName}
+            </span>
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">{event.eventName}</h1>
+            {venueAddress && <p className="max-w-2xl text-sm text-slate-200/90">{venueAddress}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href="#ticket-tiers"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              Explore Ticket Options
+            </a>
+            <a
+              href="#seat-map"
+              className="inline-flex items-center gap-2 rounded-full border border-white/70 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              Jump to Seat Map
+            </a>
+          </div>
+        </div>
+      </section>
 
-        <section id="ticket-tiers" className="my-10">
-            <h2 className="text-xl font-bold text-black">Ticket Tiers</h2>
-            <div className="mt-4 flex flex-wrap gap-2 border-b pb-4">
+      <main className="relative z-10 mx-auto w-full max-w-6xl -mt-10 flex-1 px-4 pb-16 sm:-mt-14 sm:px-6">
+        <div className="grid gap-8 lg:grid-cols-12">
+          <div className="space-y-8 lg:col-span-7 xl:col-span-8">
+            <section className="space-y-4">
+              <Accordion title="Event Description" defaultOpen>
+                <p className="whitespace-pre-wrap">
+                  {event.eventDescription || 'Details for this event will be available soon.'}
+                </p>
+              </Accordion>
+              <Accordion title="Privacy Policy">
+                <p className="whitespace-pre-wrap">
+                  {event.privacyPolicy ||
+                    'All ticket sales are final. Please review our terms and conditions for more details regarding event policies, cancellations, and refunds. Your privacy is important to us.'}
+                </p>
+              </Accordion>
+            </section>
+
+            <section id="ticket-tiers" className={CARD_BASE_CLASS}>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">Ticket Options</h2>
+                  <p className="text-sm text-slate-500">Choose the experience that fits your night out.</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
                 {dynamicFilters.map(filter => (
-                <Button
+                  <Button
                     key={filter}
                     variant={tierFilter === filter ? 'default' : 'outline'}
                     onClick={() => setTierFilter(filter)}
-                    className={tierFilter === filter ? 'bg-gray-800 text-white' : ''}
-                >
+                    className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                      tierFilter === filter
+                        ? 'bg-slate-900 text-white hover:bg-slate-950'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
                     {filter}
-                </Button>
+                  </Button>
                 ))}
-            </div>
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredTiers.map(tier => (
-                <div key={tier.id} className="rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <h3 className="font-bold text-gray-900">{tier.tierName}</h3>
-                    <p className="mt-1 text-sm text-gray-600">{/* optional tier description */}</p>
-                    <div className="mt-4 flex items-center justify-between">
-                    <p className="text-lg font-bold text-black">
-                        ${tier.price.toFixed(2)}
-                    </p>
+              </div>
+              <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredTiers.map(tier => {
+                  const remainingSeats = Math.max(tier.totalQuantity - tier.soldQuantity, 0);
+                  const isSoldOut = remainingSeats === 0;
+                  return (
+                    <div
+                      key={tier.id}
+                      className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-slate-900">{tier.tierName}</h3>
+                        <p className="text-sm text-slate-500">Perfect for guests looking for a {tier.tierName.toLowerCase()} experience.</p>
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-2xl font-bold text-slate-900">${tier.price.toFixed(2)}</p>
+                        <p
+                          className={`text-sm font-medium ${
+                            isSoldOut ? 'text-rose-600' : 'text-emerald-600'
+                          }`}
+                        >
+                          {isSoldOut ? 'Sold out' : `${remainingSeats} seats remaining`}
+                        </p>
+                      </div>
                     </div>
-                </div>
-                ))}
+                  );
+                })}
                 {filteredTiers.length === 0 && (
-                <div className="col-span-full rounded-lg border border-dashed border-gray-300 p-6 text-center text-gray-600">
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center text-slate-500">
                     No tiers found for “{tierFilter}”.
-                </div>
+                  </div>
                 )}
-            </div>
-        </section>
-
-        <section id="seat-map" className="my-10">
-          <h2 className="text-xl font-bold text-black">Select Your Seats</h2>
-          <SeatMap
-            eventId={id}
-            selectedSeats={selectedSeats}
-            onSeatSelect={handleSeatSelect}
-            tiers={tiers}
-            seatLayout={ticketDetails?.seatLayout}
-          />
-        </section>
-
-        {selectedSeatSummaries.length > 0 && (
-          <section className="my-10" aria-labelledby="reservation-summary">
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 id="reservation-summary" className="text-xl font-semibold text-black">
-                    Reservation Summary
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Seats are held for 15 minutes once you continue to checkout.
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Selected Seats</p>
-                  <p className="text-2xl font-bold text-black">
-                    {selectedSeatSummaries.length} · ${totalPrice.toFixed(2)}
-                  </p>
-                </div>
               </div>
+            </section>
 
-              <ul className="mt-4 divide-y divide-gray-200">
-                {selectedSeatSummaries.map(seat => (
-                  <li key={seat.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{seat.label}</p>
-                      <p className="text-sm text-gray-500">{seat.tierName}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-semibold text-gray-900">${seat.price.toFixed(2)}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const seatToRemove = selectedSeats.find(s => s.eventSeatId === seat.id);
-                          if (seatToRemove) {
-                            handleSeatSelect(seatToRemove);
-                          }
-                        }}
-                        aria-label={`Remove seat ${seat.label}`}
-                        className="rounded-full border border-gray-200 p-1 text-gray-500 transition hover:border-gray-300 hover:text-gray-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {holdError && (
-                <p className="mt-4 text-sm text-red-600">{holdError}</p>
-              )}
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-gray-600">
-                  Need to make changes? Click any seat on the map to toggle it off.
+            <section id="seat-map" className={CARD_BASE_CLASS}>
+              <Accordion
+                title="Select Your Seats"
+                defaultOpen
+                className="border-none bg-transparent shadow-none hover:translate-y-0 hover:shadow-none focus-within:shadow-none"
+              >
+                <p className="text-sm text-slate-500">
+                  Tap to highlight seats and build your perfect view of the stage. Expand the map to make your picks.
                 </p>
-                <Button
-                  onClick={handleCreateHold}
-                  className="flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-75"
-                  disabled={isCreatingHold}
-                >
-                  {isCreatingHold ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Reserving seats…
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="h-5 w-5" />
-                      Proceed to Checkout
-                    </>
-                  )}
-                </Button>
+                <div className="mt-5 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
+                  <SeatMap
+                    eventId={id}
+                    selectedSeats={selectedSeats}
+                    onSeatSelect={handleSeatSelect}
+                    tiers={tiers}
+                    seatLayout={ticketDetails?.seatLayout}
+                  />
+                </div>
+              </Accordion>
+            </section>
+          </div>
+
+          <aside className="space-y-6 lg:col-span-5 xl:col-span-4">
+            <section className={CARD_BASE_CLASS}>
+              <h2 className="text-lg font-semibold text-slate-900">Event Snapshot</h2>
+              <dl className="mt-4 space-y-4 text-sm text-slate-600">
+                <div className="flex items-start gap-3">
+                  <CalendarDays className="mt-1 h-5 w-5 flex-shrink-0 text-slate-500" />
+                  <div>
+                    <dt className="text-slate-500">Schedule</dt>
+                    <dd className="font-medium text-slate-900">{dateRangeLabel}</dd>
+                    <dd className="text-slate-500">{timeRangeLabel}</dd>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-1 h-5 w-5 flex-shrink-0 text-slate-500" />
+                  <div>
+                    <dt className="text-slate-500">Venue</dt>
+                    <dd className="font-medium text-slate-900">{venueName}</dd>
+                    {venueAddress && <dd className="text-slate-500">{venueAddress}</dd>}
+                  </div>
+                </div>
+              </dl>
+            </section>
+
+            <section className={CARD_BASE_CLASS}>
+              <h2 className="text-lg font-semibold text-slate-900">Event Organizer</h2>
+              {loadingOrganizers ? (
+                <p className="mt-4 text-sm text-slate-500">Gathering organizer details…</p>
+              ) : organizers.length > 0 ? (
+                <div className="mt-4 space-y-5">
+                  {organizers.map(organizer => {
+                    const socialLinks = [
+                      { label: 'Website', icon: Globe, url: organizer.websiteLink },
+                      { label: 'Facebook', icon: Facebook, url: organizer.facebookLink },
+                      { label: 'Instagram', icon: Instagram, url: organizer.instagramLink },
+                      { label: 'YouTube', icon: Youtube, url: organizer.youtubeLink },
+                    ].filter(link => link.url);
+
+                    return (
+                      <div key={organizer.id} className="rounded-xl border border-slate-200/70 bg-slate-50/60 p-4">
+                        <div className="flex items-start gap-4">
+                          <div className="relative h-14 w-14 overflow-hidden rounded-full border border-slate-200">
+                            <Image
+                              src={organizer.imageUrl || ORGANIZER_PLACEHOLDER}
+                              alt={`${organizer.name} logo`}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div>
+                              <h3 className="text-sm font-semibold text-slate-900">{organizer.name}</h3>
+                              {organizer.description && (
+                                <p className="text-sm text-slate-500">{organizer.description}</p>
+                              )}
+                            </div>
+                            <div className="space-y-2 text-xs text-slate-500">
+                              {organizer.email && (
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-slate-400" />
+                                  <a href={`mailto:${organizer.email}`} className="text-slate-600 hover:text-slate-900">
+                                    {organizer.email}
+                                  </a>
+                                </div>
+                              )}
+                              {organizer.mobile && (
+                                <div className="flex items-center gap-2">
+                                  <Phone className="h-4 w-4 text-slate-400" />
+                                  <a href={`tel:${organizer.mobile}`} className="text-slate-600 hover:text-slate-900">
+                                    {organizer.mobile}
+                                  </a>
+                                </div>
+                              )}
+                              {organizer.address && (
+                                <div className="flex items-start gap-2">
+                                  <MapPin className="h-4 w-4 flex-shrink-0 text-slate-400" />
+                                  <span>{organizer.address}</span>
+                                </div>
+                              )}
+                            </div>
+                            {socialLinks.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                {socialLinks.map(link => (
+                                  <a
+                                    key={`${organizer.id}-${link.label}`}
+                                    href={link.url ?? '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
+                                  >
+                                    <link.icon className="h-3.5 w-3.5" />
+                                    {link.label}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">Organizer details will be announced soon.</p>
+              )}
+            </section>
+
+            <section className={CARD_BASE_CLASS}>
+              <h2 className="text-lg font-semibold text-slate-900">Featured Artists</h2>
+              {loadingArtists ? (
+                <p className="mt-4 text-sm text-slate-500">Gathering artist lineup…</p>
+              ) : artists.length > 0 ? (
+                <div className="mt-4 grid gap-4">
+                  {artists.map(artist => (
+                    <div key={artist.id} className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/60 p-3">
+                      <div className="relative h-14 w-14 overflow-hidden rounded-full border border-slate-200">
+                        <Image
+                          src={artist.imageUrl || ORGANIZER_PLACEHOLDER}
+                          alt={`${artist.name} portrait`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{artist.name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">Artist lineup will be announced soon.</p>
+              )}
+            </section>
+
+            {selectedSeatSummaries.length > 0 && (
+              <section
+                className="rounded-2xl border border-emerald-200/80 bg-white/95 p-6 shadow-lg shadow-emerald-100"
+                aria-labelledby="reservation-summary"
+              >
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 id="reservation-summary" className="text-lg font-semibold text-slate-900">
+                        Reservation Summary
+                      </h2>
+                      <p className="text-sm text-slate-500">Seats are held for 15 minutes once you continue to checkout.</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Selected Seats</p>
+                      <p className="text-2xl font-bold text-slate-900">
+                        {selectedSeatSummaries.length} · ${totalPrice.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200/80">
+                    {selectedSeatSummaries.map(seat => (
+                      <li key={seat.id} className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <p className="font-medium text-slate-900">{seat.label}</p>
+                          <p className="text-xs text-slate-500">{seat.tierName}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="font-semibold text-slate-900">${seat.price.toFixed(2)}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const seatToRemove = selectedSeats.find(s => s.eventSeatId === seat.id);
+                              if (seatToRemove) {
+                                handleSeatSelect(seatToRemove);
+                              }
+                            }}
+                            aria-label={`Remove seat ${seat.label}`}
+                            className="rounded-full border border-slate-200/80 p-1.5 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {holdError && <p className="text-sm text-rose-600">{holdError}</p>}
+
+                  <Button
+                    onClick={handleCreateHold}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-80`}
+                    disabled={isCreatingHold}
+                  >
+                    {isCreatingHold ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Reserving seats…
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="h-5 w-5" />
+                        Proceed to Checkout
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </section>
+            )}
+          </aside>
+        </div>
+
+        {(loadingUpcoming || upcomingEvents.length > 0) && (
+          <section
+            className={`${CARD_BASE_CLASS} mt-12`}
+            aria-labelledby="upcoming-suggestions"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 id="upcoming-suggestions" className="text-2xl font-semibold text-slate-900">
+                  Upcoming Events You May Like
+                </h2>
+                <p className="text-sm text-slate-500">Discover what’s happening next and keep the excitement going.</p>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionScroll('left')}
+                  disabled={loadingUpcoming || upcomingEvents.length === 0}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Scroll suggestions left"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionScroll('right')}
+                  disabled={loadingUpcoming || upcomingEvents.length === 0}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Scroll suggestions right"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div
+              ref={suggestionsScrollRef}
+              className="mt-6 flex gap-4 overflow-x-auto pb-2"
+            >
+              {loadingUpcoming && (
+                <div className="flex h-40 w-full items-center justify-center text-slate-500">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="ml-2 text-sm">Gathering upcoming events…</span>
+                </div>
+              )}
+              {!loadingUpcoming &&
+                upcomingEvents.map(item => {
+                  const suggestionImage = item.imageUrls?.[0] ?? FALLBACK_HERO;
+                  const suggestionStart = new Date(item.eventStart);
+                  const suggestionEnd = new Date(item.eventEnd);
+                  const suggestionSameDay = suggestionStart.toDateString() === suggestionEnd.toDateString();
+                  const suggestionDate = suggestionSameDay
+                    ? suggestionStart.toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : `${suggestionStart.toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })} – ${suggestionEnd.toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}`;
+                  const suggestionTime = `${suggestionStart.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })} - ${suggestionEnd.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}`;
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/events/${item.id}`}
+                      className="group relative flex w-64 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                    >
+                      <div className="relative aspect-[4/3] w-full overflow-hidden">
+                        <Image
+                          src={suggestionImage}
+                          alt={`${item.eventName} preview`}
+                          fill
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 px-4 py-4">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {item.typeName}
+                        </span>
+                        <h3 className="text-base font-semibold text-slate-900">{item.eventName}</h3>
+                        <div className="mt-auto space-y-1 text-xs text-slate-500">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{suggestionDate}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{suggestionTime}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              {!loadingUpcoming && upcomingEvents.length === 0 && (
+                <p className="text-sm text-slate-500">No upcoming events to suggest just yet.</p>
+              )}
             </div>
           </section>
         )}
 
+        <section className={`${CARD_BASE_CLASS} mt-12`}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-slate-200">
+                <Image src={heroImage} alt={`${event.eventName} hero`} fill className="object-cover" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-900">Share this experience</h2>
+                <p className="text-sm text-slate-500">Invite friends and let them know about {event.eventName}.</p>
+              </div>
+            </div>
+            <Share2 className="hidden h-10 w-10 text-slate-300 sm:block" />
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {sharePlatforms.length > 0 ? (
+              sharePlatforms.map(platform => {
+                const Icon = platform.icon;
+                const isCopyAction = platform.name === 'Copy Link';
+                return (
+                  <a
+                    key={platform.name}
+                    href={isCopyAction ? '#' : platform.href}
+                    onClick={isCopyAction ? handleCopyShareLink : undefined}
+                    target={isCopyAction ? undefined : '_blank'}
+                    rel={isCopyAction ? undefined : 'noopener noreferrer'}
+                    className={`inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition ${
+                      platform.color
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {isCopyAction && copiedLink ? 'Link copied!' : platform.name}
+                  </a>
+                );
+              })
+            ) : (
+              <p className="text-sm text-slate-500">Preparing share links…</p>
+            )}
+          </div>
+        </section>
+
         {heroImages.length > 1 && (
-          <section id="gallery">
-            <h2 className="text-xl font-bold text-black">Gallery</h2>
+          <section className={`${CARD_BASE_CLASS} mt-12`} id="gallery">
+            <h2 className="text-2xl font-semibold text-slate-900">Gallery</h2>
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
               {heroImages.map((url, index) => (
-                <div key={`${url}-${index}`} className="relative aspect-video overflow-hidden rounded-lg">
+                <div key={`${url}-${index}`} className="relative aspect-video overflow-hidden rounded-xl">
                   <Image src={url} alt={`${event.eventName} image ${index + 1}`} fill className="object-cover" />
                 </div>
               ))}
@@ -388,6 +991,89 @@ function EventDetailPage({ params }: EventDetailPageProps) {
           </section>
         )}
       </main>
+      <footer className="mt-auto border-t border-slate-900/60 bg-slate-950 text-slate-100" id="contact-footer">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+          <div className="grid gap-10 md:grid-cols-3">
+            <div className="space-y-4">
+              <Link href="/" className="text-lg font-semibold text-white">
+                Event Manager
+              </Link>
+              <p className="text-sm text-slate-400">
+                Seamless ticketing for unforgettable experiences. Discover, book, and enjoy events curated just for you.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Quick links</h3>
+              <ul className="mt-4 space-y-2 text-sm text-slate-400">
+                <li>
+              <Link href="/events#events-grid" className="transition hover:text-white">
+                Browse events
+              </Link>
+                </li>
+                <li>
+                  <a href="#ticket-tiers" className="transition hover:text-white">
+                    Ticket options
+                  </a>
+                </li>
+                <li>
+                  <a href="#seat-map" className="transition hover:text-white">
+                    Seating map
+                  </a>
+                </li>
+                <li>
+                  <Link href="/profile" className="transition hover:text-white">
+                    My account
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Contact</h3>
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-slate-500" />
+                  <a href="mailto:support@eventmanager.com" className="hover:text-white">
+                    support@eventmanager.com
+                  </a>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-slate-500" />
+                  <a href="tel:+1234567890" className="hover:text-white">
+                    +1 (234) 567-890
+                  </a>
+                </li>
+                <li className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-slate-500" />
+                  <span>123 Event Lane, Suite 500, New York, NY</span>
+                </li>
+              </ul>
+              <div className="flex items-center gap-3 pt-2">
+                {[Facebook, Instagram, Linkedin, Twitter].map((Icon, index) => (
+                  <a
+                    key={Icon.displayName ?? index}
+                    href="#"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 text-slate-300 transition hover:border-slate-500 hover:text-white"
+                    aria-label="Social link"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-900/60 pt-6 text-xs text-slate-500 sm:flex-row">
+            <p className="text-slate-400">© {new Date().getFullYear()} Event Manager. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <Link href="/privacy" className="hover:text-white">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="hover:text-white">
+                Terms of Service
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
