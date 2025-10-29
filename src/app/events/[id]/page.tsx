@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button';
 
 import { EventSeat } from '@/types/eventSeat';
 import SeatMap from '@/components/booking/SeatMap';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 interface EventDetailPageProps {
   params: { id: string };
@@ -82,7 +83,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [tierFilter, setTierFilter] = useState('All');
+  const [tierFilter, setTierFilter] = useState('All Tiers');
   const [selectedSeats, setSelectedSeats] = useState<EventSeat[]>([]);
   const [isCreatingHold, setIsCreatingHold] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
@@ -297,30 +298,8 @@ function EventDetailPage({ params }: EventDetailPageProps) {
     return selectedSeatSummaries.reduce((total, seat) => total + seat.price, 0);
   }, [selectedSeatSummaries]);
 
-  // Build dynamic day filters (All, Day 1..N, Multi-Day if applicable)
-  const dynamicFilters = useMemo(() => {
-    if (!event) {
-      return ['All'];
-    }
-    const start = new Date(event.eventStart);
-    const end = new Date(event.eventEnd);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-
-    const durationDays =
-      Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-    const filters: string[] = ['All'];
-    if (durationDays > 1) {
-      for (let i = 1; i <= durationDays; i++) {
-        filters.push(`Day ${i}`);
-      }
-      if (tiers.some(t => t.tierName.includes('+') || t.tierName.toLowerCase().includes('full'))) {
-        filters.push('Multi-Day');
-      }
-    }
-    return filters;
-  }, [event, tiers]);
+  // Offer a simplified filter set that always shows all tiers
+  const dynamicFilters = useMemo(() => ['All Tiers'], []);
 
   const sharePlatforms = useMemo(() => {
     if (!shareUrl) {
@@ -440,14 +419,8 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   };
 
   const filteredTiers = tiers.filter(tier => {
-    if (tierFilter === 'All') return true;
-    if (tierFilter.startsWith('Day ')) {
-      return tier.tierName.includes(tierFilter);
-    }
-    if (tierFilter === 'Multi-Day') {
-      return tier.tierName.includes('+') || tier.tierName.toLowerCase().includes('full');
-    }
-    return false;
+    if (tierFilter === 'All Tiers') return true;
+    return tier.tierName.includes(tierFilter);
   });
 
   return (
@@ -528,15 +501,18 @@ function EventDetailPage({ params }: EventDetailPageProps) {
           <div className="space-y-8 lg:col-span-7 xl:col-span-8">
             <section className="space-y-4">
               <Accordion title="Event Description" defaultOpen>
-                <p className="whitespace-pre-wrap">
-                  {event.eventDescription || 'Details for this event will be available soon.'}
-                </p>
+                <RichTextContent
+                  content={event.eventDescription}
+                  className="rich-text-body text-sm leading-relaxed text-slate-600"
+                  emptyFallback="Details for this event will be available soon."
+                />
               </Accordion>
               <Accordion title="Privacy Policy">
-                <p className="whitespace-pre-wrap">
-                  {event.privacyPolicy ||
-                    'All ticket sales are final. Please review our terms and conditions for more details regarding event policies, cancellations, and refunds. Your privacy is important to us.'}
-                </p>
+                <RichTextContent
+                  content={event.privacyPolicy}
+                  className="rich-text-body text-sm leading-relaxed text-slate-600"
+                  emptyFallback="All ticket sales are final. Please review our terms and conditions for more details regarding event policies, cancellations, and refunds. Your privacy is important to us."
+                />
               </Accordion>
             </section>
 
@@ -570,17 +546,17 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                   return (
                     <div
                       key={tier.id}
-                      className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                      className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-[#2F5F7F] bg-[#2F5F7F] p-5 text-white shadow-lg transition hover:-translate-y-1 hover:shadow-2xl"
                     >
                       <div className="space-y-2">
-                        <h3 className="text-lg font-semibold text-slate-900">{tier.tierName}</h3>
-                        <p className="text-sm text-slate-500">Perfect for guests looking for a {tier.tierName.toLowerCase()} experience.</p>
+                        <h3 className="text-lg font-semibold text-white">{tier.tierName}</h3>
+                        <p className="text-sm text-white/80">Perfect for guests looking for a {tier.tierName.toLowerCase()} experience.</p>
                       </div>
                       <div className="space-y-3">
-                        <p className="text-2xl font-bold text-slate-900">${tier.price.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-white">${tier.price.toFixed(2)}</p>
                         <p
                           className={`text-sm font-medium ${
-                            isSoldOut ? 'text-rose-600' : 'text-emerald-600'
+                            isSoldOut ? 'text-rose-200' : 'text-emerald-200'
                           }`}
                         >
                           {isSoldOut ? 'Sold out' : `${remainingSeats} seats remaining`}

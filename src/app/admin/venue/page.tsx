@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getVenues, deleteVenue } from "@/services/venueService";
 import { Venue } from "@/types/venue";
-import { PlusCircle, Edit, Trash2, Eye, Search, Mail, Phone } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Eye, Search, Mail, Phone, Building2, Users, Sparkles, MapPin } from "lucide-react";
 
 const VenuePage = () => {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -21,6 +21,34 @@ const VenuePage = () => {
     };
     fetchVenues();
   }, []);
+
+  const stats = useMemo(() => {
+    const total = venues.length;
+    const totalCapacity = venues.reduce((sum, venue) => sum + (Number(venue.maxCapacity) || 0), 0);
+    const avgCapacity = total ? Math.round(totalCapacity / total) : 0;
+    const withUpcoming = venues.filter((venue) => (venue.eventsUpcoming ?? 0) > 0).length;
+
+    return [
+      {
+        label: "Active Venues",
+        value: total,
+        icon: Building2,
+        description: "Spaces ready for your next experience.",
+      },
+      {
+        label: "Avg Capacity",
+        value: avgCapacity,
+        icon: Users,
+        description: "Average seated capacity across venues.",
+      },
+      {
+        label: "Hosting Soon",
+        value: withUpcoming,
+        icon: Sparkles,
+        description: "Venues with upcoming events queued.",
+      },
+    ];
+  }, [venues]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this venue?")) {
@@ -41,37 +69,55 @@ const VenuePage = () => {
   );
 
   return (
-    <div className="container mx-auto p-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800">Venue Management</h1>
-        <button
-          onClick={() => router.push("/admin/venue/new")}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center"
-        >
-          <PlusCircle className="mr-2" />
-          Add Venue
-        </button>
+    <div className="space-y-8 p-8">
+      <div className="rounded-3xl bg-gradient-to-r from-[#2F5F7F] via-[#345F78] to-[#2F5F7F] p-8 text-white shadow-xl">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.35em] text-white/60">Space Directory</p>
+            <h1 className="mt-2 text-3xl font-bold md:text-4xl">Venue Management</h1>
+            <p className="mt-3 max-w-2xl text-sm text-white/80">
+              Monitor your venue inventory, highlight capacity, and ensure every location is event-ready with a single glance.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/admin/venue/new")}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#2F5F7F] shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-slate-100"
+          >
+            <PlusCircle className="h-4 w-4" /> Add Venue
+          </button>
+        </div>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {stats.map(({ label, value, icon: Icon, description }) => (
+            <div key={label} className="rounded-2xl bg-white/10 p-4 shadow-inner backdrop-blur">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-wide text-white/70">{label}</p>
+                <Icon className="h-4 w-4 text-white/80" />
+              </div>
+              <p className="mt-2 text-3xl font-bold">{value}</p>
+              <p className="mt-1 text-xs text-white/70">{description}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6 max-w-md">
-        <div className="relative">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-gray-400" />
-          </span>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Search venues by name, address, or type..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-800  "
+            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-700 shadow-sm focus:border-[#2F5F7F] focus:outline-none focus:ring-2 focus:ring-[#2F5F7F]/20"
           />
         </div>
+        <p className="text-sm text-slate-500">
+          Showing <span className="font-semibold text-slate-700">{filteredVenues.length}</span> of {" "}
+          <span className="font-semibold text-slate-700">{venues.length}</span> venues
+        </p>
       </div>
 
-      {/* Table */}
-      <div className="bg-white overflow-hidden">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full">
           <thead className="bg-gray-100">
             <tr>
@@ -92,13 +138,18 @@ const VenuePage = () => {
                   <div className="text-sm font-bold text-gray-900">{venue.venueName}</div>
                   <div className="text-xs text-gray-500">{venue.typeName}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{venue.address}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <div className="flex items-start gap-2 text-slate-700">
+                    <MapPin className="mt-0.5 h-4 w-4 text-[#2F5F7F]" />
+                    <span className="line-clamp-2 max-w-xs">{venue.address}</span>
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-800 flex items-center">
-                    <Mail size={14} className="mr-2 text-gray-400 flex-shrink-0"/> {venue.email}
+                    <Mail size={14} className="mr-2 text-gray-400 flex-shrink-0"/> {venue.email || '—'}
                   </div>
                   <div className="text-sm text-gray-500 flex items-center mt-1">
-                    <Phone size={14} className="mr-2 text-gray-400 flex-shrink-0"/> {venue.phone}
+                    <Phone size={14} className="mr-2 text-gray-400 flex-shrink-0"/> {venue.phone || '—'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-medium">{venue.maxCapacity || 'N/A'}</td>

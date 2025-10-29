@@ -63,6 +63,26 @@ const statusBadgeClass: Record<EventStatus, string> = {
   past: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
+type EventViewModel = {
+  event: Event;
+  status: EventStatus;
+  start: Date;
+  end: Date;
+  lowestPrice: number | null;
+  descriptionText: string;
+};
+
+const htmlToPlainText = (html?: string | null) => {
+  if (!html) {
+    return '';
+  }
+
+  const temporary = document.createElement('div');
+  temporary.innerHTML = html;
+  const text = temporary.textContent || temporary.innerText || '';
+  return text.replace(/\s+/g, ' ').trim();
+};
+
 function formatDateRange(start: Date, end: Date) {
   const sameDay = start.toDateString() === end.toDateString();
   const dateOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
@@ -105,6 +125,7 @@ const EventsPage = () => {
             start,
             end,
             lowestPrice: Number.isFinite(lowestPrice) ? lowestPrice : null,
+            descriptionText: htmlToPlainText(event.eventDescription),
           };
         });
 
@@ -278,7 +299,7 @@ const EventsPage = () => {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {paginatedEvents.map(({ event, status, start, end, lowestPrice }) => {
+              {paginatedEvents.map(({ event, status, start, end, lowestPrice, descriptionText }) => {
                 const { date, time } = formatDateRange(start, end);
                 const coverImage = event.imageUrls?.[0] ?? HERO_IMAGE;
                 return (
@@ -301,7 +322,7 @@ const EventsPage = () => {
                       <div className="space-y-2">
                         <h2 className="line-clamp-2 text-lg font-semibold text-slate-900">{event.eventName}</h2>
                         <p className="text-sm text-slate-500 line-clamp-2">
-                          {event.eventDescription || 'Detailed description coming soon. Stay tuned for more info.'}
+                          {descriptionText || 'Detailed description coming soon. Stay tuned for more info.'}
                         </p>
                       </div>
                       <div className="space-y-2 text-sm text-slate-600">

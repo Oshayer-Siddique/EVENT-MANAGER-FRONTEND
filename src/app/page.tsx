@@ -30,6 +30,7 @@ import {
 import { listEvents } from "@/services/eventService";
 import { getArtists } from "@/services/artistService";
 import { getVenues } from "@/services/venueService";
+import { RichTextContent } from "@/components/ui/RichTextContent";
 
 import type { Event } from "@/types/event";
 import type { Artist } from "@/types/artist";
@@ -440,9 +441,11 @@ export default function MelangeHomepage() {
             <h1 className="text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">
               {heroEvent?.eventName ?? "Explore Upcomings!"}
             </h1>
-            <p className="text-sm text-gray-100/80 sm:text-base">
-              {heroEvent?.eventDescription ?? "Explore the universe of events at your fingertips. Discover the latest concerts, conferences, and cultural moments curated for you."}
-            </p>
+            <RichTextContent
+              content={heroEvent?.eventDescription}
+              className="rich-text-body rich-text-light text-sm text-gray-100/80 sm:text-base"
+              emptyFallback="Explore the universe of events at your fingertips. Discover the latest concerts, conferences, and cultural moments curated for you."
+            />
             <div className="flex flex-wrap items-center gap-4 text-xs text-gray-100/80 sm:text-sm">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
                 <CalendarDays className="h-4 w-4" /> {heroDateLabel}
@@ -822,23 +825,23 @@ export default function MelangeHomepage() {
       </footer>
 
       {/* Floating Section Navigation */}
-      <div className="fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 md:block">
-        <div className="relative">
+      <div className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 md:block">
+        <div className="flex items-center gap-3 pl-0">
           <button
             type="button"
-            onClick={() => setIsSectionNavOpen((open) => !open)}
-            className="absolute -right-12 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-gray-900/90 text-white shadow-lg transition hover:bg-gray-800"
+            onClick={() => setIsSectionNavOpen(open => !open)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-gray-900/90 text-white shadow-lg transition hover:bg-gray-800"
             aria-label={isSectionNavOpen ? "Hide section navigation" : "Show section navigation"}
           >
             {isSectionNavOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
           </button>
           <div
             className={`transform rounded-2xl border border-white/20 bg-gray-900/95 p-4 text-xs uppercase tracking-wide text-white shadow-xl transition-all duration-300 ${
-              isSectionNavOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-6 opacity-0"
+              isSectionNavOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-4 opacity-0"
             }`}
           >
             <nav className="flex flex-col gap-3">
-              {sectionNavItems.map((item) => (
+              {sectionNavItems.map(item => (
                 <button
                   key={item.id}
                   type="button"

@@ -24,3 +24,40 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.rich-text-body p,
+.rich-text-body ul,
+.rich-text-body ol,
+.rich-text-body blockquote,
+.rich-text-body pre {
+  margin: 0 0 0.75rem;
+}
+
+.rich-text-body ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+.rich-text-body ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+
+.rich-text-body a {
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.rich-text-light a {
+  color: #f8fafc;
+  text-decoration: underline;
+}
+
+.rich-text-light p,
+.rich-text-light ul,
+.rich-text-light ol,
+.rich-text-light blockquote,
+.rich-text-light pre {
+  margin: 0 0 0.75rem;
+  color: inherit;
+}

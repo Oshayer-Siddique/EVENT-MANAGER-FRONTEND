@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { listEvents, deleteEvent, Page } from '@/services/eventService';
 import { getVenues } from '@/services/venueService';
 import { Event } from '@/types/event';
-import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye, CalendarDays, Sparkles, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateRange, formatTime } from '@/lib/utils/dateUtils';
 
@@ -59,6 +59,40 @@ const EventsPage = () => {
     fetchData();
   }, [currentPage]);
 
+  const stats = useMemo(() => {
+    const total = eventPage?.totalElements ?? 0;
+    const content = eventPage?.content ?? [];
+    const now = Date.now();
+    const upcoming = content.filter((event) => new Date(event.eventStart).getTime() > now).length;
+    const live = content.filter((event) => {
+      const start = new Date(event.eventStart).getTime();
+      const end = new Date(event.eventEnd).getTime();
+      return start <= now && end >= now;
+    }).length;
+    const venuesCovered = new Set(content.map((event) => event.venueId)).size;
+
+    return [
+      {
+        label: 'Total Events',
+        value: total,
+        icon: CalendarDays,
+        description: 'Scheduled experiences across your platform.',
+      },
+      {
+        label: 'Live / Upcoming',
+        value: `${live}/${upcoming}`,
+        icon: Sparkles,
+        description: 'Sessions currently running or about to start.',
+      },
+      {
+        label: 'Venues Featured',
+        value: venuesCovered,
+        icon: MapPin,
+        description: 'Unique venues represented on this page.',
+      },
+    ];
+  }, [eventPage]);
+
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this event?')) {
       try {
@@ -98,40 +132,60 @@ const EventsPage = () => {
   console.log('Filtered events for rendering:', filteredEvents);
 
   return (
-    <div className="container mx-auto p-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800">Event Management</h1>
-        <Link href="/admin/events/new">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
-            <PlusCircle className="mr-2" />
-            Create Event
-          </button>
-        </Link>
+    <div className="space-y-8 p-8">
+      <div className="rounded-3xl bg-gradient-to-r from-[#2F5F7F] via-[#345F78] to-[#2F5F7F] p-8 text-white shadow-xl">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.35em] text-white/60">Experience Planner</p>
+            <h1 className="mt-2 text-3xl font-bold md:text-4xl">Event Management</h1>
+            <p className="mt-3 max-w-2xl text-sm text-white/80">
+              Track everything from headline festivals to curated workshops. Stay on top of timelines, venues, and codes in one dashboard.
+            </p>
+          </div>
+          <Link
+            href="/admin/events/new"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#2F5F7F] shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:bg-slate-100"
+          >
+            <PlusCircle className="h-4 w-4" /> Create Event
+          </Link>
+        </div>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {stats.map(({ label, value, icon: Icon, description }) => (
+            <div key={label} className="rounded-2xl bg-white/10 p-4 shadow-inner backdrop-blur">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-wide text-white/70">{label}</p>
+                <Icon className="h-4 w-4 text-white/80" />
+              </div>
+              <p className="mt-2 text-3xl font-bold">{value}</p>
+              <p className="mt-1 text-xs text-white/70">{description}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6 max-w-md">
-        <div className="relative">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-gray-400" />
-          </span>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Search by event, type, code, venue..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-800"
+            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-700 shadow-sm focus:border-[#2F5F7F] focus:outline-none focus:ring-2 focus:ring-[#2F5F7F]/20"
           />
         </div>
+        <p className="text-sm text-slate-500">
+          Showing <span className="font-semibold text-slate-700">{filteredEvents?.length ?? 0}</span> of {" "}
+          <span className="font-semibold text-slate-700">{eventPage?.totalElements ?? 0}</span> events
+        </p>
       </div>
 
-      {error && <div className="text-red-600 p-4 bg-red-100 border border-red-400 rounded mb-4">{error}</div>}
+      {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
 
       {loading ? (
         <div className="text-center py-12 text-gray-500">Loading events...</div>
       ) : (
-        <div className="bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full">
             <thead className="bg-gray-100">
               <tr>

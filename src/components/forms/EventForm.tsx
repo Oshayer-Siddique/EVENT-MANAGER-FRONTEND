@@ -4,7 +4,6 @@ import { CreateEventRequest } from '@/types/event';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, Trash2, Upload, X } from 'lucide-react';
 import { ChangeEvent, useEffect, useState } from 'react';
 import { getVenues, getVenueLayouts } from '@/services/venueService';
@@ -22,12 +21,28 @@ import { BusinessOrganization } from '@/types/businessOrganization';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { ModalCombobox } from '@/components/ui/modal-combobox';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 interface EventFormProps {
     onSubmit: (data: CreateEventRequest) => void;
     initialData?: Partial<CreateEventRequest>;
     isSubmitting?: boolean;
 }
+
+const EVENT_CATEGORIES = [
+    { label: 'Movie', code: '1001' },
+    { label: 'Concert', code: '1002' },
+    { label: 'Sports', code: '1003' },
+    { label: 'Festival', code: '1004' },
+    { label: 'Fund Rising', code: '1005' },
+    { label: 'WorkShop', code: '1006' },
+    { label: 'Fashion Show', code: '1007' },
+    { label: 'Exibition', code: '1008' },
+    { label: 'Conferrence', code: '1009' },
+    { label: 'Seminar', code: '1010' },
+    { label: 'Competitons', code: '1011' },
+    { label: 'Stand Up comedy', code: '1012' },
+];
 
 const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     const {
@@ -41,6 +56,8 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
         formState: { errors },
     } = useForm<CreateEventRequest>({
         defaultValues: initialData || {
+            typeName: '',
+            typeCode: '',
             ticketTiers: [{ tierCode: 'GENERAL', tierName: 'General Admission', totalQuantity: 100, price: 50, cost: 20, visible: true }],
             imageUrls: [],
             artistIds: [],
@@ -63,6 +80,19 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
     const [isImageUploading, setIsImageUploading] = useState(false);
 
     const selectedVenueId = watch('venueId');
+    const selectedTypeName = watch('typeName');
+    const selectedTypeCode = watch('typeCode');
+
+    useEffect(() => {
+        if (selectedTypeName) {
+            const match = EVENT_CATEGORIES.find(category => category.label === selectedTypeName);
+            if (match && selectedTypeCode !== match.code) {
+                setValue('typeCode', match.code, { shouldValidate: true });
+            }
+        } else if (selectedTypeCode) {
+            setValue('typeCode', '', { shouldValidate: true });
+        }
+    }, [selectedTypeName, selectedTypeCode, setValue]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -183,32 +213,93 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
                                     <InputField label="Event Code" id="eventCode"  labelClassName="text-black" register={register('eventCode', { required: 'A unique code is required' })} placeholder="e.g., SMF2024" error={errors.eventCode} />
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputField label="Type Code" id="typeCode" labelClassName="text-black" register={register('typeCode', { required: 'Type code is required' })} placeholder="e.g., MUSIC" error={errors.typeCode} />
-                                    <InputField label="Type Name" id="typeName" labelClassName="text-black"register={register('typeName', { required: 'Type name is required' })} placeholder="e.g., Music Concert" error={errors.typeName} />
+                                    <Controller
+                                        name="typeName"
+                                        control={control}
+                                        rules={{ required: 'Event category is required' }}
+                                        render={({ field }) => (
+                                            <div className="space-y-1">
+                                                <Label htmlFor="eventCategory" className="font-medium text-black">Event Category</Label>
+                                                <select
+                                                    id="eventCategory"
+                                                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                                                    value={field.value ?? ''}
+                                                    onChange={(event) => {
+                                                        const value = event.target.value;
+                                                        field.onChange(value);
+                                                        const match = EVENT_CATEGORIES.find(category => category.label === value);
+                                                        setValue('typeCode', match?.code ?? '', { shouldValidate: true });
+                                                    }}
+                                                >
+                                                    <option value="">Select event category</option>
+                                                    {EVENT_CATEGORIES.map(category => (
+                                                        <option key={category.code} value={category.label}>
+                                                            {category.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {errors.typeName && <p className="text-sm text-red-600">{errors.typeName.message}</p>}
+                                            </div>
+                                        )}
+                                    />
+                                    <div className="space-y-1">
+                                        <Label htmlFor="typeCodeDisplay" className="font-medium text-black">Type Code</Label>
+                                        <input
+                                            id="typeCodeDisplay"
+                                            value={selectedTypeCode ?? ''}
+                                            readOnly
+                                            className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                                        />
+                                        {errors.typeCode && <p className="text-sm text-red-600">{errors.typeCode.message}</p>}
+                                    </div>
                                 </div>
+                                <Controller
+                                    name="typeCode"
+                                    control={control}
+                                    rules={{ required: 'Type code is required' }}
+                                    render={({ field }) => (
+                                        <input type="hidden" {...field} />
+                                    )}
+                                />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <InputField label="Start Time" id="eventStart" type="datetime-local" labelClassName="text-black" register={register('eventStart', { required: 'Start time is required' })} error={errors.eventStart} />
                                     <InputField label="End Time" id="eventEnd" type="datetime-local" labelClassName="text-black"register={register('eventEnd', { required: 'End time is required' })} error={errors.eventEnd} />
                                 </div>
-<TextareaField
-  id="eventDescription"
-  label="Event Description"
-  register={register('eventDescription')}
-  placeholder="Provide a detailed description of the event..."
-  error={errors.eventDescription}
-  labelClassName = "text-black"
+                                <Controller
+                                    name="eventDescription"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <RichTextEditor
+                                            id="eventDescription"
+                                            label="Event Description"
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            onBlur={field.onBlur}
+                                            placeholder="Provide a detailed description of the event..."
+                                            error={errors.eventDescription?.message}
+                                            helperText="Support for headings, links, tables, and formatted copy."
+                                            labelClassName="text-black"
+                                        />
+                                    )}
+                                />
 
-/>
-
-<TextareaField
-  id="privacyPolicy"
-  label="Privacy Policy"
-  register={register('privacyPolicy')}
-  placeholder="Enter the privacy policy for this event..."
-  error={errors.privacyPolicy}
-  labelClassName = "text-black"
-
-/>
+                                <Controller
+                                    name="privacyPolicy"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <RichTextEditor
+                                            id="privacyPolicy"
+                                            label="Privacy Policy"
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            onBlur={field.onBlur}
+                                            placeholder="Enter the privacy policy for this event..."
+                                            error={errors.privacyPolicy?.message}
+                                            helperText="Share important legal or compliance information with attendees."
+                                            labelClassName="text-black"
+                                        />
+                                    )}
+                                />
 
 
 
@@ -552,35 +643,5 @@ const SelectField = ({ id, label, control, rules, error, children, ...props }: a
 
 // If you have shadcn's cn utility, import it:
 // import { cn } from "@/lib/utils";
-
-const TextareaField = ({
-  id,
-  label,
-  register,
-  error,
-  className,
-  labelClassName,   // 👈 add this
-  ...props
-}: any) => (
-  <div className="space-y-1">
-    <Label
-      htmlFor={id}
-      // put labelClassName LAST so it wins over defaults
-      className={`font-medium ${labelClassName ?? "text-foreground"}`}
-    >
-      {label}
-    </Label>
-    <Textarea
-      id={id}
-      {...register}
-      {...props}
-      className={`w-full bg-white placeholder-slate-500 border border-slate-300
-        focus-visible:ring-blue-500 focus-visible:border-blue-500 ${className ?? ""}`}
-    />
-    {error && <p className="text-sm text-red-600">{error.message}</p>}
-  </div>
-);
-
-
 
 export default EventForm;

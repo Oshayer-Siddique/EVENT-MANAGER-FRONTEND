@@ -19,6 +19,7 @@ import { ArrowLeft, Edit, Ticket, Armchair, Users, Building, Mic, DollarSign } f
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 export default function ViewEventPage() {
     const router = useRouter();
@@ -235,13 +236,21 @@ export default function ViewEventPage() {
                                 <CardTitle className="text-black">Description & Policy</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4 text-sm">
-                                <div>
+                                <div className="space-y-2">
                                     <h4 className="font-semibold text-black">Event Description</h4>
-                                    <p className="text-gray-700 whitespace-pre-wrap">{event.eventDescription || 'Not provided.'}</p>
+                                    <RichTextContent
+                                        content={event.eventDescription}
+                                        className="rich-text-body text-sm leading-relaxed text-slate-700"
+                                        emptyFallback="Not provided."
+                                    />
                                 </div>
-                                <div>
+                                <div className="space-y-2">
                                     <h4 className="font-semibold text-black">Privacy Policy</h4>
-                                    <p className="text-gray-700 whitespace-pre-wrap">{event.privacyPolicy || 'Not provided.'}</p>
+                                    <RichTextContent
+                                        content={event.privacyPolicy}
+                                        className="rich-text-body text-sm leading-relaxed text-slate-700"
+                                        emptyFallback="Not provided."
+                                    />
                                 </div>
                             </CardContent>
                         </Card>
