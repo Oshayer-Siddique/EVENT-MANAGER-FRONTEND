@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { listEvents, deleteEvent, Page } from '@/services/eventService';
 import { getVenues } from '@/services/venueService';
 import { Event } from '@/types/event';
-import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye, CalendarDays, Sparkles, MapPin } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, ChevronLeft, ChevronRight, Eye, CalendarDays, Sparkles, MapPin, Armchair } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateRange, formatTime } from '@/lib/utils/dateUtils';
 
@@ -222,6 +222,7 @@ const EventsPage = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-1">
                     <button onClick={() => router.push(`/admin/events/${event.id}`)} className="p-2 text-green-600 rounded-full transition" title="View"><Eye size={18} /></button>
                     <button onClick={() => router.push(`/admin/events/${event.id}/edit`)} className="p-2 text-blue-600 rounded-full transition" title="Edit"><Edit size={18} /></button>
+                    <button onClick={() => router.push(`/admin/events/${event.id}/seatmap`)} className="p-2 text-indigo-600 rounded-full transition" title="Seat Map"><Armchair size={18} /></button>
                     <button onClick={() => handleDelete(event.id)} className="p-2 text-red-600 rounded-full transition" title="Delete"><Trash2 size={18} /></button>
                   </td>
                 </tr>

@@ -194,10 +194,15 @@ const SeatManagementPage = () => {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => router.push(backHref)}>
-            ← Back to Venue
-          </Button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => router.push(backHref)}>
+              ← Back to Venue
+            </Button>
+            <Button variant="outline" onClick={() => router.push(`/admin/venue/${venueId}/layout/${layoutId}/edit`)}>
+              Edit Layout
+            </Button>
+          </div>
           <div className="text-right">
             <h1 className="text-2xl font-bold text-slate-800">Manage Seats</h1>
             <p className="text-sm text-slate-500">{layout.layoutName} · {layout.typeName}</p>
@@ -379,4 +384,3 @@ const SeatManagementPage = () => {
 };
 
 export default SeatManagementPage;
-

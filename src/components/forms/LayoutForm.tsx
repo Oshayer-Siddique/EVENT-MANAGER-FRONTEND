@@ -1,214 +1,420 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layout } from "@/types/layout";
+
 import LayoutPreview from "@/components/previews/LayoutPreview";
+import { Layout } from "@/types/layout";
+
+import TheaterLayoutDesigner, {
+  buildSummary,
+  createDefaultState,
+  createStateFromDimensions,
+} from "./TheaterLayoutDesigner";
+import type { TheaterDesignerState, TheaterPlanSummary, TheaterLayoutConfiguration } from "@/types/theaterPlan";
+
+export interface LayoutFormSubmitData {
+  layout: Omit<Layout, "id" | "venueId">;
+  theaterPlan?: TheaterPlanSummary;
+  configuration?: TheaterLayoutConfiguration | null;
+}
 
 interface LayoutFormProps {
-  onSubmit: (data: Omit<Layout, "id" | "venueId">) => Promise<void>;
+  onSubmit: (data: LayoutFormSubmitData) => Promise<void>;
   initialData?: Layout | null;
   venueMaxCapacity: number;
 }
 
 const layoutTypes = [
-  { name: 'Theater', code: '200' },
-  { name: 'Banquet', code: '210' },
-  { name: 'Freestyle', code: '220' }
+  { name: "Theater", code: "200" },
+  { name: "Seminar", code: "205" },
+  { name: "Conference Hall", code: "206" },
+  { name: "Banquet", code: "210" },
+  { name: "Freestyle", code: "220" },
 ];
 
-const InputField = ({ label, name, value, onChange, required = false, placeholder = '', type = 'text', readOnly = false }) => (
-    <div>
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <input
-            type={type}
-            name={name}
-            id={name}
-            value={value}
-            onChange={onChange}
-            required={required}
-            placeholder={placeholder}
-            readOnly={readOnly}
-            className={`w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 text-gray-900 ${
-              readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
-            }`}
-        />
-    </div>
+const theaterLikeTypes = new Set(["Theater", "Seminar", "Conference Hall"]);
+
+const InputField = ({
+  label,
+  name,
+  value,
+  onChange,
+  required = false,
+  placeholder = "",
+  type = "text",
+  readOnly = false,
+}) => (
+  <div>
+    <label htmlFor={name} className="mb-1 block text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <input
+      type={type}
+      name={name}
+      id={name}
+      value={value}
+      onChange={onChange}
+      required={required}
+      placeholder={placeholder}
+      readOnly={readOnly}
+      className={`w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 shadow-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+        readOnly ? "cursor-not-allowed bg-gray-100" : ""
+      }`}
+    />
+  </div>
 );
 
 const CheckboxField = ({ label, name, checked, onChange }) => (
-    <div className="flex items-center">
-        <input
-            type="checkbox"
-            name={name}
-            id={name}
-            checked={checked}
-            onChange={onChange}
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-        <label htmlFor={name} className="ml-2 block text-sm text-gray-900">{label}</label>
-    </div>
+  <div className="flex items-center">
+    <input
+      type="checkbox"
+      name={name}
+      id={name}
+      checked={checked}
+      onChange={onChange}
+      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+    />
+    <label htmlFor={name} className="ml-2 block text-sm text-gray-900">
+      {label}
+    </label>
+  </div>
 );
 
 const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMaxCapacity }) => {
+  const router = useRouter();
+
+  const [designerDefaults] = useState(() => {
+    const state = createDefaultState();
+    return { state, summary: buildSummary(state) };
+  });
+  const [theaterState, setTheaterState] = useState<TheaterDesignerState>(designerDefaults.state);
+  const [theaterPlan, setTheaterPlan] = useState<TheaterPlanSummary>(designerDefaults.summary);
+  const [designerSeed, setDesignerSeed] = useState<TheaterDesignerState | undefined>(undefined);
+
   const [formData, setFormData] = useState({
     layoutName: "",
     typeCode: layoutTypes[0].code,
     typeName: layoutTypes[0].name,
-    totalRows: 0,
-    totalCols: 0,
+    totalRows: theaterPlan.rows.filter((row) => row.activeSeatCount > 0).length,
+    totalCols: theaterPlan.columns,
     totalTables: 0,
     chairsPerTable: 0,
     standingCapacity: 0,
-    totalCapacity: 0,
+    totalCapacity: theaterPlan.capacity,
     isActive: true,
   });
   const [capacityWarning, setCapacityWarning] = useState("");
-  const router = useRouter();
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        layoutName: initialData.layoutName || "",
-        typeCode: initialData.typeCode || layoutTypes[0].code,
-        typeName: initialData.typeName || layoutTypes[0].name,
-        totalRows: initialData.totalRows || 0,
-        totalCols: initialData.totalCols || 0,
-        totalTables: initialData.totalTables || 0,
-        chairsPerTable: initialData.chairsPerTable || 0,
-        standingCapacity: initialData.standingCapacity || 0,
-        totalCapacity: initialData.totalCapacity || 0,
-        isActive: initialData.isActive ?? true,
-      });
+    if (!initialData) {
+      return;
     }
-  }, [initialData]);
 
-  // Auto-calculate total capacity and check against venue max capacity
+    setFormData({
+      layoutName: initialData.layoutName || "",
+      typeCode: initialData.typeCode || layoutTypes[0].code,
+      typeName: initialData.typeName || layoutTypes[0].name,
+      totalRows: initialData.totalRows || 0,
+      totalCols: initialData.totalCols || 0,
+      totalTables: initialData.totalTables || 0,
+      chairsPerTable: initialData.chairsPerTable || 0,
+      standingCapacity: initialData.standingCapacity || 0,
+      totalCapacity: initialData.totalCapacity || 0,
+      isActive: initialData.isActive ?? true,
+    });
+
+    if (initialData.typeName && theaterLikeTypes.has(initialData.typeName)) {
+      if (initialData.configuration && initialData.configuration.kind === "theater") {
+        const stateFromConfig = initialData.configuration.state;
+        const summaryFromConfig = initialData.configuration.summary ?? buildSummary(initialData.configuration.state);
+        setTheaterState(stateFromConfig);
+        setTheaterPlan(summaryFromConfig);
+        setDesignerSeed(stateFromConfig);
+      } else {
+        const defaultSeatRows = designerDefaults.summary.rows.filter((row) => row.activeSeatCount > 0).length || 1;
+        const defaultCols = designerDefaults.summary.columns || 1;
+        const rows = Math.max(1, initialData.totalRows || defaultSeatRows);
+        const cols = Math.max(1, initialData.totalCols || defaultCols);
+
+        const nextState = createStateFromDimensions(rows, cols, designerDefaults.state.sections);
+        setTheaterState(nextState);
+        setTheaterPlan(buildSummary(nextState));
+        setDesignerSeed(nextState);
+      }
+    } else {
+      setDesignerSeed(undefined);
+    }
+  }, [designerDefaults.state.sections, designerDefaults.summary.columns, designerDefaults.summary.rows, initialData]);
+
+  const activeSeatRowCount = theaterPlan.rows.filter((row) => !row.isWalkway && row.activeSeatCount > 0).length;
+
   useEffect(() => {
+    if (theaterLikeTypes.has(formData.typeName)) {
+      const capacity = theaterPlan.capacity;
+      const rows = activeSeatRowCount;
+      const cols = theaterPlan.columns;
+
+      setFormData((prev) => {
+        if (
+          prev.totalCapacity === capacity &&
+          prev.totalRows === rows &&
+          prev.totalCols === cols
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          totalCapacity: capacity,
+          totalRows: rows,
+          totalCols: cols,
+          totalTables: 0,
+          chairsPerTable: 0,
+          standingCapacity: 0,
+        };
+      });
+
+      if (venueMaxCapacity > 0 && capacity > venueMaxCapacity) {
+        setCapacityWarning(`Warning: Capacity exceeds venue's maximum of ${venueMaxCapacity}.`);
+      } else {
+        setCapacityWarning("");
+      }
+
+      return;
+    }
+
     let capacity = 0;
-    if (formData.typeName === 'Theater') {
-      capacity = formData.totalRows * formData.totalCols;
-    } else if (formData.typeName === 'Banquet') {
+    if (formData.typeName === "Banquet") {
       capacity = formData.totalTables * formData.chairsPerTable;
-    } else if (formData.typeName === 'Freestyle') {
+    } else if (formData.typeName === "Freestyle") {
       capacity = formData.standingCapacity;
     }
-    setFormData(prev => ({ ...prev, totalCapacity: capacity }));
+
+    setFormData((prev) => (prev.totalCapacity === capacity ? prev : { ...prev, totalCapacity: capacity }));
 
     if (venueMaxCapacity > 0 && capacity > venueMaxCapacity) {
       setCapacityWarning(`Warning: Capacity exceeds venue's maximum of ${venueMaxCapacity}.`);
     } else {
       setCapacityWarning("");
     }
-  }, [formData.typeName, formData.totalRows, formData.totalCols, formData.totalTables, formData.chairsPerTable, formData.standingCapacity, venueMaxCapacity]);
+  }, [
+    formData.typeName,
+    formData.totalTables,
+    formData.chairsPerTable,
+    formData.standingCapacity,
+    theaterPlan.capacity,
+    theaterPlan.columns,
+    activeSeatRowCount,
+    venueMaxCapacity,
+  ]);
 
+  const handleTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedTypeName = event.target.value;
+    const selectedType = layoutTypes.find((type) => type.name === selectedTypeName);
+    if (!selectedType) {
+      return;
+    }
 
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedTypeName = e.target.value;
-    const selectedType = layoutTypes.find(t => t.name === selectedTypeName);
-    if (selectedType) {
-      setFormData(prev => ({
-        ...prev,
-        typeName: selectedType.name,
-        typeCode: selectedType.code,
-        totalRows: 0,
-        totalCols: 0,
-        totalTables: 0,
-        chairsPerTable: 0,
-        standingCapacity: 0,
-      }));
+    setCapacityWarning("");
+    setFormData((prev) => ({
+      ...prev,
+      typeName: selectedType.name,
+      typeCode: selectedType.code,
+      totalRows: theaterPlan.rows.filter((row) => row.activeSeatCount > 0).length,
+      totalCols: theaterPlan.columns,
+      totalTables: 0,
+      chairsPerTable: 0,
+      standingCapacity: 0,
+      totalCapacity: theaterLikeTypes.has(selectedType.name) ? theaterPlan.capacity : 0,
+    }));
+
+    const wasTheaterLike = theaterLikeTypes.has(formData.typeName);
+    const willBeTheaterLike = theaterLikeTypes.has(selectedType.name);
+
+    if (!wasTheaterLike && willBeTheaterLike) {
+      const seed = createDefaultState();
+      setDesignerSeed(seed);
+      setTheaterState(seed);
+      setTheaterPlan(buildSummary(seed));
+    } else if (!willBeTheaterLike) {
+      setDesignerSeed(undefined);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = event.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : type === 'number' ? parseInt(value, 10) || 0 : value,
+      [name]: type === "checkbox" ? checked : type === "number" ? parseInt(value, 10) || 0 : value,
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDesignerChange = useCallback(
+    (state: TheaterDesignerState, summary: TheaterPlanSummary) => {
+      setTheaterState(state);
+      setTheaterPlan(summary);
+    },
+    [],
+  );
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (capacityWarning) {
       alert("Cannot save: Layout capacity exceeds venue's maximum capacity.");
       return;
     }
-    await onSubmit(formData);
+
+    const isTheaterLayout = theaterLikeTypes.has(formData.typeName);
+
+    if (isTheaterLayout && theaterPlan.capacity === 0) {
+      alert("Please configure at least one seat for this layout.");
+      return;
+    }
+
+    const configuration: TheaterLayoutConfiguration | null = isTheaterLayout
+      ? { kind: "theater", state: theaterState, summary: theaterPlan }
+      : null;
+
+    const payload: Omit<Layout, "id" | "venueId"> = {
+      ...formData,
+      totalRows: isTheaterLayout ? theaterPlan.rows.filter((row) => row.activeSeatCount > 0).length : formData.totalRows,
+      totalCols: isTheaterLayout ? theaterPlan.columns : formData.totalCols,
+      totalCapacity: isTheaterLayout ? theaterPlan.capacity : formData.totalCapacity,
+      configuration,
+    };
+
+    await onSubmit({
+      layout: payload,
+      theaterPlan: isTheaterLayout ? theaterPlan : undefined,
+      configuration,
+    });
   };
 
-  const selectedLayoutType = layoutTypes.find(t => t.name === formData.typeName);
+  const selectedLayoutType = layoutTypes.find((type) => type.name === formData.typeName);
+  const isTheaterLayout = theaterLikeTypes.has(formData.typeName);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-8">
-        
-        {/* Column 1: Basic Info */}
-        <div className="space-y-6">
-          <h3 className="font-semibold text-lg text-gray-700 mb-4">Basic Information</h3>
-          <InputField label="Layout Name" name="layoutName" value={formData.layoutName} onChange={handleChange} required placeholder="e.g., Main Hall, Rooftop Deck" />
-          <div>
-            <label htmlFor="typeName" className="block text-sm font-medium text-gray-700 mb-1">Layout Type</label>
-            <select
+    <form onSubmit={handleSubmit} className="space-y-10">
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 text-lg font-semibold text-gray-700">Basic Information</h3>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="md:col-span-2 lg:col-span-1">
+              <InputField
+                label="Layout Name"
+                name="layoutName"
+                value={formData.layoutName}
+                onChange={handleChange}
+                required
+                placeholder="e.g., Orchestra Level, VIP Deck"
+              />
+            </div>
+            <div>
+              <label htmlFor="typeName" className="mb-1 block text-sm font-medium text-gray-700">
+                Layout Type
+              </label>
+              <select
                 name="typeName"
                 id="typeName"
                 value={formData.typeName}
                 onChange={handleTypeChange}
-                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-            >
-                {layoutTypes.map(type => <option key={type.code} value={type.name}>{type.name}</option>)}
-            </select>
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {layoutTypes.map((type) => (
+                  <option key={type.code} value={type.name}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <InputField
+                label="Total Capacity"
+                name="totalCapacity"
+                value={isTheaterLayout ? theaterPlan.capacity : formData.totalCapacity}
+                onChange={() => {}}
+                required
+                type="number"
+                readOnly
+              />
+              {capacityWarning ? (
+                <p className="mt-1 text-sm text-red-600">{capacityWarning}</p>
+              ) : null}
+            </div>
+            <div className="md:col-span-2 lg:col-span-1">
+              <CheckboxField label="Active" name="isActive" checked={formData.isActive} onChange={handleChange} />
+            </div>
           </div>
-          <div>
-            <InputField label="Total Capacity" name="totalCapacity" value={formData.totalCapacity} onChange={() => {}} required type="number" readOnly />
-            {capacityWarning && <p className="text-sm text-red-600 mt-1">{capacityWarning}</p>}
-          </div>
-          <CheckboxField label="Active" name="isActive" checked={formData.isActive} onChange={handleChange} />
         </div>
 
-        {/* Column 2: Configuration */}
-        <div className="space-y-6 p-6 bg-gray-50 rounded-lg border">
-            <h3 className="font-semibold text-lg text-gray-700 mb-4">Detailed Configuration</h3>
-            {selectedLayoutType?.name === 'Theater' && (
-              <>
-                <InputField label="Rows" name="totalRows" value={formData.totalRows} onChange={handleChange} type="number" />
-                <InputField label="Columns" name="totalCols" value={formData.totalCols} onChange={handleChange} type="number" />
-              </>
-            )}
-            {selectedLayoutType?.name === 'Banquet' && (
-              <>
-                <InputField label="Tables" name="totalTables" value={formData.totalTables} onChange={handleChange} type="number" />
-                <InputField label="Chairs Per Table" name="chairsPerTable" value={formData.chairsPerTable} onChange={handleChange} type="number" />
-              </>
-            )}
-            {selectedLayoutType?.name === 'Freestyle' && (
-              <>
-                <InputField label="Standing Capacity" name="standingCapacity" value={formData.standingCapacity} onChange={handleChange} type="number" />
-              </>
-            )}
-        </div>
-
-        {/* Column 3: Preview */}
-        <div className="space-y-6 p-6 bg-gray-50 rounded-lg border">
-          <h3 className="font-semibold text-lg text-gray-700 mb-4">Preview</h3>
-          <div className="flex items-center justify-center h-full min-h-[200px]">
-            <LayoutPreview {...formData} />
+        {!isTheaterLayout && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-700">Detailed Configuration</h3>
+              {selectedLayoutType?.name === "Banquet" && (
+                <>
+                  <InputField
+                    label="Tables"
+                    name="totalTables"
+                    value={formData.totalTables}
+                    onChange={handleChange}
+                    type="number"
+                  />
+                  <InputField
+                    label="Chairs Per Table"
+                    name="chairsPerTable"
+                    value={formData.chairsPerTable}
+                    onChange={handleChange}
+                    type="number"
+                  />
+                </>
+              )}
+              {selectedLayoutType?.name === "Freestyle" && (
+                <InputField
+                  label="Standing Capacity"
+                  name="standingCapacity"
+                  value={formData.standingCapacity}
+                  onChange={handleChange}
+                  type="number"
+                />
+              )}
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-lg font-semibold text-gray-700">Preview</h3>
+              <div className="flex min-h-[240px] items-center justify-center">
+                <LayoutPreview {...formData} />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <div className="pt-8 border-t border-gray-200">
+      {isTheaterLayout ? (
+        <TheaterLayoutDesigner
+          value={designerSeed}
+          onInitialized={() => setDesignerSeed(undefined)}
+          onChange={handleDesignerChange}
+          venueMaxCapacity={venueMaxCapacity}
+        />
+      ) : null}
+
+      <div className="border-t border-gray-200 pt-8">
         <div className="flex justify-end">
-            <button type="button" onClick={() => router.back()} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg mr-4">
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={!!capacityWarning}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {initialData ? "Update Layout" : "Save Layout"}
-            </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mr-4 rounded-lg bg-gray-200 px-6 py-2 font-bold text-gray-800 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!!capacityWarning}
+            className="rounded-lg bg-blue-600 px-6 py-2 font-bold text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+          >
+            {initialData ? "Update Layout" : "Save Layout"}
+          </button>
         </div>
       </div>
     </form>

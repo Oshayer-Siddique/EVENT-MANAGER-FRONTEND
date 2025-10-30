@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { getVenueById, deleteVenue, getVenueLayouts } from "@/services/venueService";
+import { getVenueById, deleteVenue, getVenueLayouts, deleteVenueLayout } from "@/services/venueService";
 import { Venue } from "@/types/venue";
 import { Layout } from "@/types/layout";
 import LayoutPreview from "@/components/previews/LayoutPreview";
@@ -49,6 +49,20 @@ const VenueDetailsPage = () => {
       } catch (error) {
         console.error("Failed to delete venue:", error);
       }
+    }
+  };
+
+  const handleDeleteLayout = async (layoutId: string) => {
+    if (!venue) return;
+    if (!window.confirm("Delete this seating layout? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      await deleteVenueLayout(venue.id, layoutId);
+      setLayouts((prev) => prev.filter((layout) => layout.id !== layoutId));
+    } catch (error) {
+      console.error("Failed to delete seating layout:", error);
+      alert("Failed to delete layout. Please try again.");
     }
   };
 
@@ -120,6 +134,8 @@ const VenueDetailsPage = () => {
                         key={layout.id}
                         layout={layout}
                         onManage={() => router.push(`/admin/venue/${venue.id}/layout/${layout.id}`)}
+                        onEdit={(layoutId) => router.push(`/admin/venue/${venue.id}/layout/${layoutId}/edit`)}
+                        onDelete={(layoutId) => handleDeleteLayout(layoutId)}
                       />
                     ))}
                   </div>
@@ -208,7 +224,7 @@ const InfoItem = ({ icon: Icon, label, value, href }) => {
     );
 };
 
-const LayoutCard = ({ layout, onManage }: { layout: Layout; onManage: (layoutId: string) => void }) => {
+const LayoutCard = ({ layout, onManage, onEdit, onDelete }: { layout: Layout; onManage: (layoutId: string) => void; onEdit: (layoutId: string) => void; onDelete: (layoutId: string) => void }) => {
   const details = [
     {label: 'Capacity', value: layout.totalCapacity},
     layout.totalRows > 0 && {label: 'Rows', value: layout.totalRows},
@@ -242,12 +258,32 @@ const LayoutCard = ({ layout, onManage }: { layout: Layout; onManage: (layoutId:
       <details className="mt-4 text-sm">
         <summary className="cursor-pointer text-indigo-600 hover:underline font-semibold">Show Preview</summary>        
         <div className="mt-2 p-2 flex justify-center items-center bg-slate-50 rounded-lg border border-slate-200">
-          <LayoutPreview {...layout} />
+          <LayoutPreview
+            typeName={layout.typeName}
+            totalRows={layout.totalRows}
+            totalCols={layout.totalCols}
+            totalTables={layout.totalTables}
+            chairsPerTable={layout.chairsPerTable}
+            standingCapacity={layout.standingCapacity}
+            theaterPlan={layout.configuration?.kind === "theater" ? layout.configuration.summary : undefined}
+            configuration={layout.configuration}
+          />
         </div>
       </details>
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => onEdit(layout.id)}>
+          Edit Layout
+        </Button>
         <Button variant="outline" size="sm" onClick={() => onManage(layout.id)}>
           Manage Seats
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-red-500 text-red-600 hover:bg-red-50"
+          onClick={() => onDelete(layout.id)}
+        >
+          Delete
         </Button>
       </div>
     </div>

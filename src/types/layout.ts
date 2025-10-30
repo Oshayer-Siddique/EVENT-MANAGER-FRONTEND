@@ -1,3 +1,5 @@
+import type { TheaterLayoutConfiguration } from "./theaterPlan";
+
 export interface Layout {
   id: string;
   typeCode: string;
@@ -11,4 +13,5 @@ export interface Layout {
   standingCapacity?: number;
   totalCapacity: number;
   isActive: boolean;
+  configuration?: TheaterLayoutConfiguration | null;
 }
