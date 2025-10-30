@@ -3,13 +3,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { PlusCircle, Edit, Trash2, Search, Users, ShieldCheck, Workflow, Eye } from 'lucide-react';
-import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
+import {
+  getEventManagers,
+  getOperators,
+  getEventCheckers,
+  deleteEventManager,
+  deleteOperator,
+  deleteEventChecker,
+} from '@/services/userService';
 
 export default function TeamPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -69,6 +77,37 @@ export default function TeamPage() {
         (member.fullName && member.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+  const handleDelete = async (member: any) => {
+    if (deletingId) return;
+    if (!window.confirm(`Remove ${member.fullName || member.username} from your team?`)) {
+      return;
+    }
+
+    setDeletingId(member.id);
+    try {
+      switch (member.roleCode) {
+        case '803':
+          await deleteEventManager(member.id);
+          break;
+        case '804':
+          await deleteOperator(member.id);
+          break;
+        case '805':
+          await deleteEventChecker(member.id);
+          break;
+        default:
+          throw new Error('Unsupported role for deletion.');
+      }
+
+      setMembers((prev) => prev.filter((item) => item.id !== member.id));
+    } catch (error) {
+      console.error('Failed to delete team member', error);
+      alert('Failed to delete team member. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (loading) {
     return <p>Loading...</p>;
@@ -175,7 +214,14 @@ export default function TeamPage() {
                   <Link href={`/admin/team/${member.id}/edit`}>
                     <button className="p-2 text-gray-400 hover:text-green-600 rounded-full hover:bg-gray-100 transition" title="Edit"><Edit size={18} /></button>
                   </Link>
-                  <button onClick={() => {}} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition" title="Delete"><Trash2 size={18} /></button>
+                  <button
+                    onClick={() => handleDelete(member)}
+                    disabled={deletingId === member.id}
+                    className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Delete"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </td>
               </tr>
             ))}

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import LayoutPreview from '@/components/previews/LayoutPreview';
 
 interface SeatFormState {
   row: string;
@@ -175,6 +176,12 @@ const SeatManagementPage = () => {
     }
   };
 
+  const theaterSummary = layout?.configuration?.kind === 'theater' ? layout.configuration.summary : null;
+  const activeRows = theaterSummary
+    ? theaterSummary.rows.filter((row) => !row.isWalkway && row.activeSeatCount > 0).length
+    : layout?.totalRows;
+  const totalCapacity = theaterSummary?.capacity ?? layout?.totalCapacity;
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -214,6 +221,74 @@ const SeatManagementPage = () => {
             {error}
           </div>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className='text-black'>Layout Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {theaterSummary || layout.typeName ? (
+              <div className="grid gap-6 lg:grid-cols-[minmax(220px,280px)_1fr]">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500">Layout Type</p>
+                    <p className="text-lg font-semibold text-slate-800">{layout.typeName}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Total Seats</p>
+                      <p className="mt-1 text-base font-semibold text-slate-800">{totalCapacity ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Active Rows</p>
+                      <p className="mt-1 text-base font-semibold text-slate-800">{activeRows ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Columns</p>
+                      <p className="mt-1 text-base font-semibold text-slate-800">{theaterSummary?.columns ?? layout.totalCols ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-500">Status</p>
+                      <p className="mt-1 inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                        {layout.isActive ? 'Active' : 'Inactive'}
+                      </p>
+                    </div>
+                  </div>
+                  {theaterSummary?.sections?.length ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Sections</p>
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                        {theaterSummary.sections.map((section) => (
+                          <span key={section.id} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 shadow-sm">
+                            <span
+                              className="inline-flex h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: section.color }}
+                            />
+                            {section.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white/70 p-4">
+                  <LayoutPreview
+                    typeName={layout.typeName}
+                    totalRows={layout.totalRows}
+                    totalCols={layout.totalCols}
+                    totalTables={layout.totalTables}
+                    chairsPerTable={layout.chairsPerTable}
+                    standingCapacity={layout.standingCapacity}
+                    theaterPlan={theaterSummary ?? undefined}
+                    configuration={layout.configuration ?? null}
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">This layout does not have a stored seating configuration yet.</p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

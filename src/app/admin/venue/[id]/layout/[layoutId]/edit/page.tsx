@@ -18,6 +18,9 @@ const EditLayoutPage = () => {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRegeneratingSeats, setIsRegeneratingSeats] = useState(false);
+  const [isDeletingLayout, setIsDeletingLayout] = useState(false);
 
   useEffect(() => {
     if (!venueId || !layoutId) return;
@@ -44,17 +47,42 @@ const EditLayoutPage = () => {
 
   const handleSubmit = async ({ layout: updatedLayout, theaterPlan }: LayoutFormSubmitData) => {
     if (!venueId || !layoutId) return;
+    setIsSubmitting(true);
     try {
       await updateVenueLayout(venueId, layoutId, updatedLayout);
 
       if (theaterPlan) {
         try {
+          setIsRegeneratingSeats(true);
           await replaceSeatsFromPlan(layoutId, theaterPlan);
         } catch (seatError) {
           console.error("Failed to update seats:", seatError);
-          alert(
-            "Layout details saved, but seats could not be regenerated. If this layout is attached to an active event or existing tickets, please detach it first and try again.",
-          );
+          const seatErrorDetails =
+            seatError && typeof seatError === "object" && "details" in seatError && Array.isArray((seatError as Record<string, unknown>).details)
+              ? (seatError as { details: string[] }).details
+              : [];
+
+          let alertMessage =
+            "Layout details saved, but seats could not be regenerated. If this layout is attached to an active event or existing tickets, please detach it first and try again.";
+
+          if (seatError && typeof seatError === "object" && "code" in seatError) {
+            const code = (seatError as Record<string, unknown>).code;
+            if (code === "SEAT_DELETE_FAILED") {
+              alertMessage =
+                seatErrorDetails.length > 0
+                  ? `Layout details saved, but some existing seats could not be removed (first issue: ${seatErrorDetails[0]}). This can happen if a seat is reserved, assigned to an event, or already removed in a concurrent update. Refresh and try again once the seat is free.`
+                  : "Layout details saved, but some existing seats could not be removed. This usually means the layout is tied to active events or issued tickets. Detach those assignments, then retry.";
+            } else if (code === "SEAT_CREATE_FAILED") {
+              alertMessage =
+                seatErrorDetails.length > 0
+                  ? `Layout details saved, but ${seatErrorDetails.length} seat${seatErrorDetails.length === 1 ? "" : "s"} failed to regenerate (first issue: ${seatErrorDetails[0]}). Review the seat map manually.`
+                  : "Layout details saved, but some seats failed to regenerate. Review the seat map manually.";
+            }
+          }
+
+          alert(alertMessage);
+        } finally {
+          setIsRegeneratingSeats(false);
         }
       }
 
@@ -62,6 +90,8 @@ const EditLayoutPage = () => {
     } catch (error) {
       console.error("Failed to update layout:", error);
       alert("Failed to update layout. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,17 +107,20 @@ const EditLayoutPage = () => {
     if (!window.confirm("Delete this seating layout? This action cannot be undone.")) {
       return;
     }
+    setIsDeletingLayout(true);
     try {
       await deleteVenueLayout(venueId, layoutId);
       router.push(`/admin/venue/${venueId}`);
     } catch (error) {
       console.error("Failed to delete layout:", error);
       alert("Failed to delete layout. Please try again.");
+    } finally {
+      setIsDeletingLayout(false);
     }
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen px-4 py-8 lg:px-8">
+    <div className="relative bg-gray-50 min-h-screen px-4 py-8 lg:px-8">
       <div className="mx-auto w-full max-w-[1400px] rounded-2xl bg-white px-6 py-8 shadow-lg lg:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -103,9 +136,10 @@ const EditLayoutPage = () => {
             </button>
             <button
               onClick={handleDelete}
-              className="rounded-lg border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-500 hover:text-white"
+              disabled={isDeletingLayout}
+              className="rounded-lg border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-red-500 disabled:hover:text-white"
             >
-              Delete Layout
+              {isDeletingLayout ? "Deleting…" : "Delete Layout"}
             </button>
           </div>
         </div>
@@ -113,6 +147,23 @@ const EditLayoutPage = () => {
           <LayoutForm onSubmit={handleSubmit} initialData={layout} venueMaxCapacity={venue?.maxCapacity ? parseInt(venue.maxCapacity, 10) : 0} />
         </div>
       </div>
+
+      {(isSubmitting || isRegeneratingSeats || isDeletingLayout) && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div className="rounded-xl bg-white px-6 py-4 text-center shadow-lg">
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+              {isDeletingLayout ? "Deleting layout" : isRegeneratingSeats ? "Regenerating seats" : "Updating layout"}
+            </p>
+            <p className="mt-2 text-lg font-bold text-slate-800">
+              {isDeletingLayout
+                ? "Seats and seating layout are getting deleted. This may take a moment."
+                : isRegeneratingSeats
+                  ? "Hang tight while we rebuild every seat for this layout."
+                  : "Please wait…"}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

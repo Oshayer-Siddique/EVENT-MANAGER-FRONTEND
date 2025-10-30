@@ -14,6 +14,8 @@ const NewLayoutPage = () => {
 
   const [venue, setVenue] = useState<Venue | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingSeats, setIsGeneratingSeats] = useState(false);
 
   useEffect(() => {
     if (venueId) {
@@ -26,15 +28,32 @@ const NewLayoutPage = () => {
 
   const handleSubmit = async ({ layout, theaterPlan }: LayoutFormSubmitData) => {
     if (!venueId) return;
+    setIsSubmitting(true);
     try {
       const createdLayout = await createVenueLayout(venueId, layout);
 
       if (theaterPlan && theaterPlan.seats.length > 0) {
         try {
+          setIsGeneratingSeats(true);
           await createSeatsFromPlan(createdLayout.id, theaterPlan);
         } catch (seatError) {
           console.error("Failed to persist seats:", seatError);
-          alert("Layout saved, but seats could not be generated automatically. Please review the layout manually.");
+
+          const details =
+            seatError && typeof seatError === "object" && "details" in seatError && Array.isArray((seatError as Record<string, unknown>).details)
+              ? (seatError as { details: string[] }).details
+              : [];
+
+          const friendlyMessage =
+            seatError && typeof seatError === "object" && "code" in seatError && (seatError as Record<string, unknown>).code === "SEAT_CREATE_FAILED"
+              ? `Layout saved, but ${details.length} seat${details.length === 1 ? "" : "s"} could not be generated automatically${
+                  details.length ? ` (first issue: ${details[0]})` : ""
+                }. Please review the layout manually.`
+              : "Layout saved, but seats could not be generated automatically. Please review the layout manually.";
+
+          alert(friendlyMessage);
+        } finally {
+          setIsGeneratingSeats(false);
         }
       }
 
@@ -42,6 +61,8 @@ const NewLayoutPage = () => {
     } catch (error) {
       console.error("Failed to create layout:", error);
       alert("Failed to create layout. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -50,12 +71,27 @@ const NewLayoutPage = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen px-4 py-8 lg:px-8">
+    <div className="relative bg-gray-50 min-h-screen px-4 py-8 lg:px-8">
       <div className="mx-auto w-full max-w-[1400px] rounded-2xl bg-white px-6 py-8 shadow-lg lg:px-10">
         <h1 className="text-3xl font-bold text-blue-700 mb-2">Create New Seating Layout</h1>
         <p className="text-lg text-gray-600 mb-8">For: {venue?.venueName}</p>
         <LayoutForm onSubmit={handleSubmit} venueMaxCapacity={venue?.maxCapacity ? parseInt(venue.maxCapacity, 10) : 0} />
       </div>
+
+      {(isSubmitting || isGeneratingSeats) && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div className="rounded-xl bg-white px-6 py-4 text-center shadow-lg">
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+              {isGeneratingSeats ? "Generating seats" : "Saving layout"}
+            </p>
+            <p className="mt-2 text-lg font-bold text-slate-800">
+              {isGeneratingSeats
+                ? "This may take a moment while we create every seat."
+                : "Please wait…"}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

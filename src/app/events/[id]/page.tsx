@@ -646,9 +646,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                           <div className="space-y-2">
                             <div>
                               <h3 className="text-sm font-semibold text-slate-900">{organizer.name}</h3>
-                              {organizer.description && (
-                                <p className="text-sm text-slate-500">{organizer.description}</p>
-                              )}
+
                             </div>
                             <div className="space-y-2 text-xs text-slate-500">
                               {organizer.email && (
@@ -659,37 +657,10 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                                   </a>
                                 </div>
                               )}
-                              {organizer.mobile && (
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 text-slate-400" />
-                                  <a href={`tel:${organizer.mobile}`} className="text-slate-600 hover:text-slate-900">
-                                    {organizer.mobile}
-                                  </a>
-                                </div>
-                              )}
-                              {organizer.address && (
-                                <div className="flex items-start gap-2">
-                                  <MapPin className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                                  <span>{organizer.address}</span>
-                                </div>
-                              )}
+
+
                             </div>
-                            {socialLinks.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-2 pt-1">
-                                {socialLinks.map(link => (
-                                  <a
-                                    key={`${organizer.id}-${link.label}`}
-                                    href={link.url ?? '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
-                                  >
-                                    <link.icon className="h-3.5 w-3.5" />
-                                    {link.label}
-                                  </a>
-                                ))}
-                              </div>
-                            )}
+
                           </div>
                         </div>
                       </div>

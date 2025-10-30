@@ -4,6 +4,35 @@ import { Venue } from '../types/venue';
 import { Layout } from '../types/layout';
 
 const SEAT_DELETE_CHUNK_SIZE = 25;
+const MAX_DELETE_RETRIES = 5;
+const DELETE_RETRY_BASE_DELAY_MS = 200;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shouldRetryDelete = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const normalized = error.message.toLowerCase();
+  return normalized.includes('429') || normalized.includes('too many requests') || normalized.includes('rate limit');
+};
+
+const deleteSeatWithRetry = async (layoutId: string, seatId: string) => {
+  let attempt = 0;
+  while (attempt < MAX_DELETE_RETRIES) {
+    try {
+      await deleteSeatForLayout(layoutId, seatId);
+      return;
+    } catch (error) {
+      attempt += 1;
+      if (!shouldRetryDelete(error) || attempt >= MAX_DELETE_RETRIES) {
+        throw error;
+      }
+      const backoff = DELETE_RETRY_BASE_DELAY_MS * attempt * attempt;
+      await sleep(backoff);
+    }
+  }
+};
 
 export const getVenues = async (): Promise<Venue[]> => {
   return apiClient('/venues');
@@ -62,7 +91,10 @@ export const deleteVenueLayout = async (venueId: string, layoutId: string): Prom
     const seats = await getSeatsForLayout(layoutId);
     for (let index = 0; index < seats.length; index += SEAT_DELETE_CHUNK_SIZE) {
       const chunk = seats.slice(index, index + SEAT_DELETE_CHUNK_SIZE);
-      await Promise.all(chunk.map(seat => deleteSeatForLayout(layoutId, seat.id)));
+      for (const seat of chunk) {
+        await deleteSeatWithRetry(layoutId, seat.id);
+        await sleep(40);
+      }
     }
   } catch (error) {
     console.warn(`Failed to fetch seats for layout ${layoutId} before deletion. Continuing with layout delete.`, error);
