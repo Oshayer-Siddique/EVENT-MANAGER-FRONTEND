@@ -150,7 +150,7 @@ export default function ArtistPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Contact</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Location</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Socials</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -167,7 +167,7 @@ export default function ArtistPage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{artist.name}</p>
-                          <p className="text-xs text-slate-500 line-clamp-1">{artist.description || 'No bio provided yet.'}</p>
+                          {/* <p className="text-xs text-slate-500 line-clamp-1">{artist.description || 'No bio provided yet.'}</p> */}
                         </div>
                       </div>
                     </td>

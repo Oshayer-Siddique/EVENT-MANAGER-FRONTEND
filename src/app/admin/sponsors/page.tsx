@@ -151,7 +151,7 @@ export default function SponsorPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Contact</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Location</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Socials</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -168,7 +168,7 @@ export default function SponsorPage() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{sponsor.name}</p>
-                          <p className="text-xs text-slate-500 line-clamp-1">{sponsor.description || 'No overview shared yet.'}</p>
+                          {/* <p className="text-xs text-slate-500 line-clamp-1">{sponsor.description || 'No overview shared yet.'}</p> */}
                         </div>
                       </div>
                     </td>

@@ -442,7 +442,7 @@ export default function MelangeHomepage() {
               {heroEvent?.eventName ?? "Explore Upcomings!"}
             </h1>
             <RichTextContent
-              content={heroEvent?.eventDescription}
+              // content={heroEvent?.eventDescription}
               className="rich-text-body rich-text-light text-sm text-gray-100/80 sm:text-base"
               emptyFallback="Explore the universe of events at your fingertips. Discover the latest concerts, conferences, and cultural moments curated for you."
             />
