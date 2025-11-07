@@ -150,11 +150,16 @@ export default function OrganizerPage() {
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Organization</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Location</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Socials</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Organizers
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Contact
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Location
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Socials
+                </th>                
+                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-blue-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

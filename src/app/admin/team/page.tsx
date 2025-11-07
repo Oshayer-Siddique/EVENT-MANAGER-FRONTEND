@@ -182,7 +182,9 @@ export default function TeamPage() {
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Email</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Phone</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-4 text-right text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
+<th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text-right pr-12">
+  Actions
+</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">

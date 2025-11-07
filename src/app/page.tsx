@@ -121,19 +121,99 @@ const getStartingPrice = (event: Event) => {
   })}`;
 };
 
-const EVENT_TYPES: { name: string; Icon: LucideIcon }[] = [
-  { name: "Movie", Icon: Clapperboard },
-  { name: "Concert", Icon: Music },
-  { name: "Sports", Icon: Dumbbell },
-  { name: "Festival", Icon: PartyPopper },
-  { name: "Fundraising", Icon: HandCoins },
-  { name: "Workshop", Icon: Hammer },
-  { name: "Fashion Show", Icon: Shirt },
-  { name: "Exhibition", Icon: GalleryVerticalEnd },
-  { name: "Conference", Icon: Presentation },
-  { name: "Seminar", Icon: BookOpen },
-  { name: "Competitions", Icon: Trophy },
-  { name: "Stand-up Comedy", Icon: Mic },
+type EventCategory = {
+  name: string;
+  Icon: LucideIcon;
+  gradient: string;
+  iconClass: string;
+  ringClass: string;
+};
+
+const EVENT_TYPES: EventCategory[] = [
+  {
+    name: "Movie",
+    Icon: Clapperboard,
+    gradient: "from-indigo-500/20 via-indigo-500/10 to-indigo-500/0",
+    iconClass: "text-indigo-600",
+    ringClass: "ring-indigo-200/70",
+  },
+  {
+    name: "Concert",
+    Icon: Music,
+    gradient: "from-rose-500/20 via-rose-500/10 to-rose-500/0",
+    iconClass: "text-rose-500",
+    ringClass: "ring-rose-200/70",
+  },
+  {
+    name: "Sports",
+    Icon: Dumbbell,
+    gradient: "from-emerald-500/20 via-emerald-500/10 to-emerald-500/0",
+    iconClass: "text-emerald-500",
+    ringClass: "ring-emerald-200/70",
+  },
+  {
+    name: "Festival",
+    Icon: PartyPopper,
+    gradient: "from-amber-500/20 via-amber-500/10 to-amber-500/0",
+    iconClass: "text-amber-500",
+    ringClass: "ring-amber-200/70",
+  },
+  {
+    name: "Fundraising",
+    Icon: HandCoins,
+    gradient: "from-purple-500/20 via-purple-500/10 to-purple-500/0",
+    iconClass: "text-purple-500",
+    ringClass: "ring-purple-200/70",
+  },
+  {
+    name: "Workshop",
+    Icon: Hammer,
+    gradient: "from-sky-500/20 via-sky-500/10 to-sky-500/0",
+    iconClass: "text-sky-500",
+    ringClass: "ring-sky-200/70",
+  },
+  {
+    name: "Fashion Show",
+    Icon: Shirt,
+    gradient: "from-pink-500/20 via-pink-500/10 to-pink-500/0",
+    iconClass: "text-pink-500",
+    ringClass: "ring-pink-200/70",
+  },
+  {
+    name: "Exhibition",
+    Icon: GalleryVerticalEnd,
+    gradient: "from-cyan-500/20 via-cyan-500/10 to-cyan-500/0",
+    iconClass: "text-cyan-500",
+    ringClass: "ring-cyan-200/70",
+  },
+  {
+    name: "Conference",
+    Icon: Presentation,
+    gradient: "from-teal-500/20 via-teal-500/10 to-teal-500/0",
+    iconClass: "text-teal-500",
+    ringClass: "ring-teal-200/70",
+  },
+  {
+    name: "Seminar",
+    Icon: BookOpen,
+    gradient: "from-blue-500/20 via-blue-500/10 to-blue-500/0",
+    iconClass: "text-blue-500",
+    ringClass: "ring-blue-200/70",
+  },
+  {
+    name: "Competitions",
+    Icon: Trophy,
+    gradient: "from-orange-500/20 via-orange-500/10 to-orange-500/0",
+    iconClass: "text-orange-500",
+    ringClass: "ring-orange-200/70",
+  },
+  {
+    name: "Stand-up Comedy",
+    Icon: Mic,
+    gradient: "from-lime-500/20 via-lime-500/10 to-lime-500/0",
+    iconClass: "text-lime-500",
+    ringClass: "ring-lime-200/70",
+  },
 ];
 
 export default function MelangeHomepage() {
@@ -327,8 +407,8 @@ export default function MelangeHomepage() {
     <div className="min-h-screen bg-white">
       {/* Top utility bar */}
       <div className="bg-gray-900 text-gray-100">
-        <div className="mx-auto flex items-center justify-between gap-4 px-4 py-2 text-[11px] sm:text-xs sm:px-6 lg:max-w-7xl lg:px-8">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="mx-auto flex flex-col items-center justify-center gap-2 px-4 py-2 text-[11px] sm:flex-row sm:justify-between sm:gap-4 sm:text-xs sm:px-6 lg:max-w-7xl lg:px-8">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-start">
             <span className="hidden items-center gap-1 text-gray-300 sm:inline-flex">
               <MapPin className="h-3.5 w-3.5" /> Dhaka, Bangladesh
             </span>
@@ -550,12 +630,16 @@ export default function MelangeHomepage() {
               ref={categoryScrollRef}
               className="category-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2 pt-2"
             >
-              {EVENT_TYPES.map(({ name, Icon }) => (
+              {EVENT_TYPES.map(({ name, Icon, gradient, iconClass, ringClass }) => (
                 <div
                   key={name}
-                  className="flex min-w-[90px] flex-col items-center justify-center gap-2 text-center text-gray-700 transition hover:text-gray-900"
+                  className="group flex min-w-[100px] flex-col items-center justify-center gap-3 text-center text-gray-700 transition hover:text-gray-900"
                 >
-                  <Icon className="h-8 w-8" aria-hidden />
+                  <div
+                    className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${gradient} ring-1 ring-inset ${ringClass} shadow-sm transition duration-300 group-hover:scale-105 group-hover:shadow-md`}
+                  >
+                    <Icon className={`h-7 w-7 ${iconClass}`} aria-hidden />
+                  </div>
                   <span className="text-[11px] font-semibold uppercase tracking-wide">
                     {name}
                   </span>
@@ -675,11 +759,11 @@ export default function MelangeHomepage() {
             <div className="relative overflow-hidden">
               <div className="flex gap-3 animate-scroll">
                 {[...pastEventImages, ...pastEventImages].map((img, idx) => (
-                  <div key={`${img}-${idx}`} className="w-64 flex-shrink-0">
+                  <div key={`${img}-${idx}`} className="w-48 flex-shrink-0 sm:w-64">
                     <img
                       src={img || FALLBACK_EVENT_IMAGE}
                       alt={`Past event ${idx + 1}`}
-                      className="h-40 w-full rounded-lg object-cover shadow-md"
+                      className="h-32 w-full rounded-lg object-cover shadow-md sm:h-40"
                     />
                   </div>
                 ))}
@@ -806,7 +890,7 @@ export default function MelangeHomepage() {
             <div>
               <h4 className="font-semibold mb-3 text-sm">Newsletter</h4>
               <p className="text-xs text-gray-400 mb-3">Get event updates</p>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input 
                   type="email" 
                   placeholder="Your email"

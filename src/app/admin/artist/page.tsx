@@ -146,12 +146,18 @@ export default function ArtistPage() {
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Artist</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Location</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Socials</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
-              </tr>
+                <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Artists
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Contact
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Location
+                </th>   <th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text pr-12">
+                  Socials
+                </th>                
+<th className="px-6 py-4 text-sm font-bold text-blue-600 uppercase tracking-wider text-right pr-12">
+  Actions
+</th>              </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredArtists.map((artist) => {
