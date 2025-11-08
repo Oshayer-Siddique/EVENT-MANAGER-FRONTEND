@@ -27,4 +27,5 @@ export interface SeatAssignmentPayload {
   seatId?: string;
   tierCode: string;
   price?: number;
+  status?: EventSeatStatus;
 }

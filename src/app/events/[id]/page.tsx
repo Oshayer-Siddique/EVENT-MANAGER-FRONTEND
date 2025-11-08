@@ -12,7 +12,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ShoppingCart,
   Loader2,
   X,
   Phone,
@@ -31,7 +30,6 @@ import { getEvent, getEventTicketDetails, listEvents } from '@/services/eventSer
 import { getBusinessOrganizationById } from '@/services/businessOrganizationService';
 import { getArtistById } from '@/services/artistService';
 import { getVenueById } from '@/services/venueService';
-import holdService from '@/services/holdService';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEventSeats } from '@/hooks/useEventSeats';
 
@@ -42,7 +40,6 @@ import type { Venue } from '@/types/venue';
 import { Button } from '@/components/ui/button';
 
 import { EventSeat, EventSeatStatus } from '@/types/eventSeat';
-import SeatMap from '@/components/booking/SeatMap';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 
 interface EventDetailPageProps {
@@ -87,9 +84,6 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tierFilter, setTierFilter] = useState('All Tiers');
-  const [selectedSeats, setSelectedSeats] = useState<EventSeat[]>([]);
-  const [isCreatingHold, setIsCreatingHold] = useState(false);
-  const [holdError, setHoldError] = useState<string | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
   const [organizers, setOrganizers] = useState<BusinessOrganization[]>([]);
@@ -265,134 +259,6 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const loadingFreestyleSeats = allowDirectPurchase ? liveSeatLoading : false;
 
 
-  const handleSeatSelect = (seat: EventSeat) => {
-    setSelectedSeats(prev => {
-      if (prev.some(s => s.eventSeatId === seat.eventSeatId)) {
-        return prev.filter(s => s.eventSeatId !== seat.eventSeatId);
-      } else {
-        return [...prev, seat];
-      }
-    });
-  };
-
-  const handleCreateHold = async () => {
-    if (selectedSeats.length === 0) {
-      setHoldError('Please select at least one seat before proceeding.');
-      return;
-    }
-
-    try {
-      setIsCreatingHold(true);
-      setHoldError(null);
-      const hold = await holdService.createHold({
-        eventId: id,
-        seatIds: selectedSeats.map(s => s.seatId),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      });
-
-      router.push(`/checkout?holdId=${hold.id}`);
-    } catch (error) {
-      console.error('Failed to create hold:', error);
-      setHoldError('We could not reserve those seats. Please refresh and try again.');
-    } finally {
-      setIsCreatingHold(false);
-    }
-  };
-
-  const selectedSeatSummaries = useMemo(() => {
-    return selectedSeats.map(seat => {
-      const tierCode = seat.tierCode;
-      const tier = tiers.find(t => t.tierCode === tierCode);
-      const seatLabel =
-        seat.label ??
-        (seat.row && seat.number !== undefined
-          ? `${seat.row}${seat.number}`
-          : seat.row ?? String(seat.number ?? 'Seat'));
-      const price = seat.price ?? tier?.price ?? 0;
-      const numericPrice = Number(price) || 0;
-      return {
-        id: seat.eventSeatId,
-        label: seatLabel,
-        tierName: tier?.tierName ?? tierCode ?? 'General',
-        price: numericPrice,
-      };
-    });
-  }, [selectedSeats, tiers]);
-
-  const totalPrice = useMemo(() => {
-    return selectedSeatSummaries.reduce((total, seat) => total + seat.price, 0);
-  }, [selectedSeatSummaries]);
-
-  const reservationSummaryCard = selectedSeatSummaries.length > 0 && (
-    <div
-      className="rounded-2xl border border-emerald-200/80 bg-white/95 p-6 shadow-lg shadow-emerald-100"
-      aria-labelledby="reservation-summary"
-    >
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 id="reservation-summary" className="text-lg font-semibold text-slate-900">
-              Reservation Summary
-            </h2>
-            <p className="text-sm text-slate-500">Seats are held for 15 minutes once you continue to checkout.</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Selected Seats</p>
-            <p className="text-2xl font-bold text-slate-900">
-              {selectedSeatSummaries.length} · ${totalPrice.toFixed(2)}
-            </p>
-          </div>
-        </div>
-
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200/80">
-          {selectedSeatSummaries.map(seat => (
-            <li key={seat.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-medium text-slate-900">{seat.label}</p>
-                <p className="text-xs text-slate-500">{seat.tierName}</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="font-semibold text-slate-900">${seat.price.toFixed(2)}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const seatToRemove = selectedSeats.find(s => s.eventSeatId === seat.id);
-                    if (seatToRemove) {
-                      handleSeatSelect(seatToRemove);
-                    }
-                  }}
-                  aria-label={`Remove seat ${seat.label}`}
-                  className="rounded-full border border-slate-200/80 p-1.5 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {holdError && <p className="text-sm text-rose-600">{holdError}</p>}
-
-        <Button
-          onClick={handleCreateHold}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-80"
-          disabled={isCreatingHold}
-        >
-          {isCreatingHold ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Reserving seats...
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="h-5 w-5" />
-              Proceed to Checkout
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
-  );
 
   const availableFreestyleSeatsByTier = useMemo(() => {
     if (!allowDirectPurchase) {
@@ -791,29 +657,22 @@ function EventDetailPage({ params }: EventDetailPageProps) {
 
             {!allowDirectPurchase && (
               <section id="seat-map" className={CARD_BASE_CLASS}>
-                <Accordion
-                  title="Select Your Seats"
-                  defaultOpen
-                  className="border-none bg-transparent shadow-none hover:translate-y-0 hover:shadow-none focus-within:shadow-none"
-                >
-                  <p className="text-sm text-slate-500">
-                    Tap to highlight seats and build your perfect view of the stage. Expand the map to make your picks.
-                  </p>
-                  <div className="mt-5 lg:grid lg:grid-cols-[3fr,2fr] lg:gap-6">
-                    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
-                      <SeatMap
-                        eventId={id}
-                        selectedSeats={selectedSeats}
-                        onSeatSelect={handleSeatSelect}
-                        tiers={tiers}
-                        seatLayout={ticketDetails?.seatLayout}
-                      />
-                    </div>
-                    {reservationSummaryCard && (
-                      <div className="mt-4 lg:mt-0">{reservationSummaryCard}</div>
-                    )}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Preferred seating</p>
+                    <h2 className="text-xl font-semibold text-slate-900">Choose exact seats</h2>
+                    <p className="text-sm text-slate-500">
+                      Use the interactive seat map on the next page to reserve the perfect view before checkout.
+                    </p>
                   </div>
-                </Accordion>
+                  <Button
+                    type="button"
+                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                    onClick={() => router.push(`/events/${id}/seat-selection`)}
+                  >
+                    Open seat selection
+                  </Button>
+                </div>
               </section>
             )}
           </div>

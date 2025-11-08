@@ -234,6 +234,7 @@ const SeatLegend = () => (
     <LegendItem color="bg-green-100 border-green-500" label="Available" />
     <LegendItem color="bg-blue-100 border-blue-500" label="Selected" />
     <LegendItem color="bg-yellow-100 border-yellow-500" label="Reserved" />
+    <LegendItem color="bg-rose-100 border-rose-500" label="Pre-reserved" />
     <LegendItem color="bg-red-100 border-red-500" label="Sold" />
   </div>
 );
@@ -260,6 +261,8 @@ const buildSeatClasses = (status: EventSeatStatus, isSelected: boolean) => {
       return `${base} cursor-not-allowed border-yellow-400 bg-yellow-50 text-yellow-700`;
     case EventSeatStatus.SOLD:
       return `${base} cursor-not-allowed border-red-400 bg-red-50 text-red-600`;
+    case EventSeatStatus.BLOCKED:
+      return `${base} cursor-not-allowed border-rose-400 bg-rose-50 text-rose-600`;
     default:
       return `${base} border-gray-300 bg-gray-100 text-gray-500`;
   }
@@ -296,6 +299,8 @@ const statusCopy = (status: EventSeatStatus) => {
       return 'Reserved';
     case EventSeatStatus.SOLD:
       return 'Sold';
+    case EventSeatStatus.BLOCKED:
+      return 'Reserved by organizer';
     default:
       return 'Unavailable';
   }

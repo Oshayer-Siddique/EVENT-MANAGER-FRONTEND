@@ -2,6 +2,7 @@ export enum EventSeatStatus {
     AVAILABLE = 'AVAILABLE',
     RESERVED = 'RESERVED',
     SOLD = 'SOLD',
+    BLOCKED = 'BLOCKED',
 }
 
 export interface EventSeat {
