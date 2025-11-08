@@ -26,3 +26,21 @@ export interface UpdateUserRequest {
     password?: string;
     roles?: UserRole[];
 }
+
+export interface UserProfile {
+    id: string;
+    fullName: string;
+    username: string;
+    email: string;
+    phone?: string | null;
+    role: string;
+    roleName?: string;
+    imageUrl?: string | null;
+    totalTicketCount: number;
+    ticketsAtHand: number;
+    ticketsUsed: number;
+    totalTicketPrice: number;
+    emailVerified: boolean;
+    mobileVerified: boolean;
+    signupDate: string;
+}

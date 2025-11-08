@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { getEventSeats } from '../../services/eventSeatService';
+import { useEventSeats } from '@/hooks/useEventSeats';
 import { EventSeat, EventSeatStatus } from '../../types/eventSeat';
 import type { EventTicketTier, SeatLayoutSummary } from '../../types/event';
 
@@ -15,34 +15,12 @@ interface SeatMapProps {
 }
 
 const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: SeatMapProps) => {
-  const [seats, setSeats] = useState<EventSeat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { seats, loading, error, rateLimitedUntil, refresh } = useEventSeats(eventId, {
+    enabled: Boolean(eventId),
+    cacheDurationMs: 0,
+  });
   const [activeTier, setActiveTier] = useState<string>('ALL');
   const [activeSection, setActiveSection] = useState<string>('');
-
-  useEffect(() => {
-    const fetchSeats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const seatData = await getEventSeats(eventId);
-        setSeats(seatData);
-
-        const sectionNames = Array.from(
-          new Set(seatData.map(seat => seat.type ?? 'General Seating')),
-        );
-        setActiveSection(sectionNames[0] ?? 'General Seating');
-      } catch (err) {
-        console.error('Failed to fetch event seats:', err);
-        setError('Seat layout is not available for this event yet.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSeats();
-  }, [eventId]);
 
   const tierLabelMap = useMemo(() => {
     const map = new Map<string, { name: string; price: number }>();
@@ -106,9 +84,19 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
   }
 
   if (error) {
+    const message = rateLimitedUntil && rateLimitedUntil > Date.now()
+      ? 'We are refreshing seat availability. Please try again shortly.'
+      : error.message || 'Seat layout is not available for this event yet.';
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
-        {error}
+      <div className="space-y-3 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+        <p>{message}</p>
+        <button
+          type="button"
+          onClick={() => void refresh({ ignoreRateLimit: true })}
+          className="rounded-md border border-yellow-400 px-3 py-1 text-xs font-semibold text-yellow-900 transition hover:bg-yellow-100"
+        >
+          Retry now
+        </button>
       </div>
     );
   }
@@ -123,8 +111,8 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Choose your seats</h3>
           {seatLayout && (
@@ -133,7 +121,7 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
           <FilterPill
             active={activeTier === 'ALL'}
             label="All tiers"
@@ -152,7 +140,7 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
 
       <SeatLegend />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {Array.from(sectionGroups.keys()).map(section => (
           <SectionChip
             key={section}
@@ -164,15 +152,18 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
       </div>
 
       {activeSection ? (
-        <div className="space-y-4 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:p-4 lg:max-h-[60vh] lg:overflow-y-auto">
           {Array.from(sectionGroups.get(activeSection)?.entries() ?? []).map(([row, rowSeats]) => (
             <div key={row} className="space-y-2">
-              <div className="font-medium text-gray-700">{row}</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex items-center justify-between text-sm font-medium text-gray-700">
+                <span>{row}</span>
+                <span className="text-xs text-gray-400">{rowSeats.length} seats</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {rowSeats.map(seat => {
-                  const isSelected = selectedSeats.some(
-                    selected => selected.eventSeatId === seat.eventSeatId,
-                  );
+                      const isSelected = selectedSeats.some(
+                        selected => selected.eventSeatId === seat.eventSeatId,
+                      );
                   const tier = tierLabelMap.get(seat.tierCode ?? seat.type ?? '');
                   const statusLabel = statusCopy(seat.status);
                   const seatLabel = seat.label
@@ -192,9 +183,9 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
                       disabled={seat.status !== EventSeatStatus.AVAILABLE}
                       aria-label={tooltip}
                     >
-                      <span className="text-xs font-semibold">{seatLabel}</span>
+                      <span className="text-[11px] font-semibold leading-tight">{seatLabel}</span>
                       {numericPrice !== undefined && !Number.isNaN(numericPrice) && (
-                        <span className="text-[10px] text-gray-500">${numericPrice.toFixed(0)}</span>
+                        <span className="text-[9px] text-gray-500">${numericPrice.toFixed(0)}</span>
                       )}
                     </button>
                   );
@@ -239,7 +230,7 @@ const SectionChip = ({ active, label, onClick }: { active: boolean; label: strin
 );
 
 const SeatLegend = () => (
-  <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+  <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600">
     <LegendItem color="bg-green-100 border-green-500" label="Available" />
     <LegendItem color="bg-blue-100 border-blue-500" label="Selected" />
     <LegendItem color="bg-yellow-100 border-yellow-500" label="Reserved" />
@@ -256,19 +247,19 @@ const LegendItem = ({ color, label }: { color: string; label: string }) => (
 
 const buildSeatClasses = (status: EventSeatStatus, isSelected: boolean) => {
   if (isSelected) {
-    return 'flex h-12 w-12 flex-col items-center justify-center rounded-md border-2 border-blue-500 bg-blue-100 text-blue-700 shadow-sm';
+    return 'flex h-8 w-8 flex-col items-center justify-center rounded-md border-2 border-blue-500 bg-blue-100 text-blue-700 shadow-sm';
   }
 
   const base =
-    'flex h-12 w-12 flex-col items-center justify-center rounded-md border bg-white text-gray-600 shadow-sm transition';
+    'flex h-8 w-8 flex-col items-center justify-center rounded-md border bg-white text-[10px] text-gray-600 shadow-sm transition';
 
   switch (status) {
     case EventSeatStatus.AVAILABLE:
-      return `${base} border-green-500 hover:-translate-y-0.5 hover:border-green-600 hover:shadow`;
+      return `${base} border-green-400 hover:-translate-y-0.5 hover:border-green-600 hover:shadow`;
     case EventSeatStatus.RESERVED:
-      return `${base} cursor-not-allowed border-yellow-500 bg-yellow-50 text-yellow-700`;
+      return `${base} cursor-not-allowed border-yellow-400 bg-yellow-50 text-yellow-700`;
     case EventSeatStatus.SOLD:
-      return `${base} cursor-not-allowed border-red-500 bg-red-50 text-red-600`;
+      return `${base} cursor-not-allowed border-red-400 bg-red-50 text-red-600`;
     default:
       return `${base} border-gray-300 bg-gray-100 text-gray-500`;
   }

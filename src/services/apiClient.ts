@@ -10,6 +10,12 @@
  * @returns The JSON response from the API.
  * @throws An error if the API response is not ok.
  */
+export interface ApiClientError extends Error {
+  status?: number;
+  body?: unknown;
+  retryAfterMs?: number;
+}
+
 export const apiClient = async (url: string, options: RequestInit = {}) => {
   const baseUrl = "http://localhost:5010/api";
   // Ensure this code only runs on the client-side
@@ -40,7 +46,18 @@ export const apiClient = async (url: string, options: RequestInit = {}) => {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
     console.error(`[API Client] Error ${res.status} on request to ${url}:`, errorData);
-    throw new Error(errorData.message || "An error occurred with the API request.");
+    const error: ApiClientError = new Error(errorData.message || "An error occurred with the API request.");
+    error.status = res.status;
+    error.body = errorData;
+    const retryAfter = res.headers.get("retry-after");
+    if (retryAfter) {
+      const retrySeconds = Number(retryAfter);
+      const retryMs = Number.isFinite(retrySeconds) ? retrySeconds * 1000 : undefined;
+      if (retryMs) {
+        error.retryAfterMs = retryMs;
+      }
+    }
+    throw error;
   }
 
   // Handle cases where response might be empty

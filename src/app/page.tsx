@@ -31,6 +31,7 @@ import { listEvents } from "@/services/eventService";
 import { getArtists } from "@/services/artistService";
 import { getVenues } from "@/services/venueService";
 import { RichTextContent } from "@/components/ui/RichTextContent";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 import type { Event } from "@/types/event";
 import type { Artist } from "@/types/artist";
@@ -217,6 +218,7 @@ const EVENT_TYPES: EventCategory[] = [
 ];
 
 export default function MelangeHomepage() {
+  const { user: currentUser } = useCurrentUser();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -226,6 +228,16 @@ export default function MelangeHomepage() {
   const [isLoadingArtists, setIsLoadingArtists] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSectionNavOpen, setIsSectionNavOpen] = useState(false);
+  const signedInName = useMemo(() => {
+    if (!currentUser) {
+      return "";
+    }
+    if (currentUser.fullName && currentUser.fullName.trim().length > 0) {
+      const [first] = currentUser.fullName.trim().split(" ");
+      return first || currentUser.fullName;
+    }
+    return currentUser.username ?? currentUser.email;
+  }, [currentUser]);
   const categoryScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -465,9 +477,23 @@ export default function MelangeHomepage() {
             </div>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Link href="/signin" className="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-full transition-colors hover:bg-gray-800">
-                Sign In
-              </Link>
+              {currentUser ? (
+                <>
+                  <Link href="/profile" className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
+                    My tickets
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="px-6 py-2 rounded-full border border-gray-300 text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
+                  >
+                    Hi, {signedInName || 'there'}
+                  </Link>
+                </>
+              ) : (
+                <Link href="/signin" className="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-full transition-colors hover:bg-gray-800">
+                  Sign In
+                </Link>
+              )}
             </div>
 
             {/* Mobile menu button */}
@@ -495,9 +521,18 @@ export default function MelangeHomepage() {
               <button onClick={() => handleScrollTo("past-events")} className="block w-full px-3 py-2 text-left text-base font-medium text-gray-700">
                 Highlights
               </button>
-              <Link href="/signin" className="mt-2 block w-full rounded-full bg-gray-900 px-6 py-2 text-center text-sm font-medium text-white">
-                Sign In
-              </Link>
+              {currentUser ? (
+                <Link
+                  href="/profile"
+                  className="mt-2 block w-full rounded-full border border-gray-300 px-6 py-2 text-center text-sm font-semibold text-gray-900"
+                >
+                  Hi, {signedInName || 'there'}
+                </Link>
+              ) : (
+                <Link href="/signin" className="mt-2 block w-full rounded-full bg-gray-900 px-6 py-2 text-center text-sm font-medium text-white">
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         )}

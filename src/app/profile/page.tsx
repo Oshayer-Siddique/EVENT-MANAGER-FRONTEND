@@ -1,227 +1,395 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import { getCurrentUser, logout } from "@/services/authService";
-import { UserProfile } from "@/types/user";
-import { 
-  User, 
-  CalendarDays, 
-  Ticket, 
-  BarChart2, 
-  Settings, 
-  Mail, 
-  Phone,
-  LogOut,
-  Edit,
+import type { UserProfile } from "@/types/user";
+
+import {
+  CalendarDays,
+  CreditCard,
+  Headphones,
   History,
-  CreditCard
+  LifeBuoy,
+  LogOut,
+  Mail,
+  Phone,
+  Ticket,
+  User,
 } from "lucide-react";
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
   const router = useRouter();
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchProfile = async () => {
       try {
-        // Simulate loading time
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const data = await getCurrentUser();
-        if (data.role === 'ROLE_ORG_ADMIN') {
-          router.push('/admin/dashboard');
+        const profile = await getCurrentUser();
+        if (cancelled) return;
+        if (profile.role === "ROLE_ORG_ADMIN") {
+          router.replace("/admin/dashboard");
           return;
         }
-        setUser(data);
-      } catch (err: any) {
-        setError("Failed to fetch profile. Please make sure you are logged in.");
-        // Redirect to login if unauthorized
-        setTimeout(() => router.push('/signin'), 2000);
+        setUser(profile);
+      } catch (err) {
+        console.error("Failed to load profile", err);
+        if (!cancelled) {
+          setError("We couldn't load your profile. Please sign in again.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
+
     fetchProfile();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/signin');
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.replace("/signin");
+    } catch (err) {
+      console.error("Logout failed", err);
+      router.replace("/signin");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
-  if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
-  if (!user) return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
-    </div>
-  );
+  const joinDateLabel = useMemo(() => {
+    if (!user) {
+      return "";
+    }
+    const parsed = new Date(user.signupDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return "—";
+    }
+    return parsed.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }, [user]);
+
+  const stats = useMemo(() => {
+    if (!user) {
+      return [] as Array<{
+        label: string;
+        value: string | number;
+        icon: React.ComponentType<{ className?: string }>;
+        chipClass: string;
+        iconClass: string;
+        prefix?: string;
+      }>;
+    }
+    return [
+      {
+        label: "Total tickets",
+        value: user.totalTicketCount,
+        icon: Ticket,
+        chipClass: "bg-indigo-50 text-indigo-600",
+        iconClass: "bg-indigo-100 text-indigo-700",
+      },
+      {
+        label: "Tickets on hand",
+        value: user.ticketsAtHand,
+        icon: CalendarDays,
+        chipClass: "bg-emerald-50 text-emerald-600",
+        iconClass: "bg-emerald-100 text-emerald-600",
+      },
+      {
+        label: "Tickets used",
+        value: user.ticketsUsed,
+        icon: History,
+        chipClass: "bg-amber-50 text-amber-600",
+        iconClass: "bg-amber-100 text-amber-600",
+      },
+      {
+        label: "Total spent",
+        value: user.totalTicketPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        icon: CreditCard,
+        chipClass: "bg-rose-50 text-rose-600",
+        iconClass: "bg-rose-100 text-rose-600",
+        prefix: "$",
+      },
+    ];
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-300 border-t-4 border-t-slate-900" />
+        <p className="mt-4 text-sm text-slate-500">Loading your profile…</p>
+      </div>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 text-center">
+        <p className="text-lg font-semibold text-slate-900">{error ?? "Profile unavailable"}</p>
+        <p className="mt-2 text-sm text-slate-500">Your session might have expired. Please sign in again to continue.</p>
+        <Link
+          href="/signin"
+          className="mt-6 inline-flex items-center rounded-full bg-slate-900 px-6 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Go to sign in
+        </Link>
+      </div>
+    );
+  }
+
+  const safeJoinDateLabel = joinDateLabel || "—";
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            {user.role === 'ROLE_USER' ? 'My Profile' : 'Dashboard'}
-          </h1>
-          {user.role !== 'ROLE_USER' && (
-            <button className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium text-sm sm:text-base">
-              Create Event
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white/70 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-400">Account</p>
+            <h1 className="text-xl font-semibold text-slate-900">Profile</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/events"
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Browse events
+            </Link>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-80"
+            >
+              <LogOut className="h-4 w-4" />
+              {isLoggingOut ? "Signing out…" : "Log out"}
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-10 sm:px-6 lg:px-8">
-        {/* Profile Header */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-          <div className="h-24 sm:h-32 bg-gradient-to-r from-blue-600 to-purple-600" />
-          <div className="px-6 sm:px-8 pb-6 -mt-16 sm:-mt-20">
-            <div className="flex items-end space-x-5">
-              {user.imageUrl ? (
-                <img src={user.imageUrl} alt="Profile" className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg object-cover" />
-              ) : (
-                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-white shadow-lg bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                  <User className="text-white w-12 h-12 sm:w-16 sm:h-16" />
-                </div>
-              )}
-              <div className="pb-2 sm:pb-4">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{user.fullName}</h1>
-                <p className="text-sm text-gray-500">{user.roleName}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <ProfileHero user={user} joinDateLabel={safeJoinDateLabel} onLogout={handleLogout} isLoggingOut={isLoggingOut} />
 
-        {/* Stats Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard icon={Ticket} title="Total Tickets" value={user.totalTicketCount} />
-          <StatCard icon={CalendarDays} title="Tickets At Hand" value={user.ticketsAtHand} />
-          <StatCard icon={History} title="Tickets Used" value={user.ticketsUsed} />
-          <StatCard icon={CreditCard} title="Total Spent" value={`${user.totalTicketPrice.toFixed(2)}`} />
-        </div>
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map(stat => (
+            <StatCard key={stat.label} {...stat} />
+          ))}
+        </section>
 
-        {/* Tab Navigation */}
-        <div className="mb-8">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-              <TabButton name="overview" activeTab={activeTab} setActiveTab={setActiveTab} icon={BarChart2}>Overview</TabButton>
-              <TabButton name="events" activeTab={activeTab} setActiveTab={setActiveTab} icon={CalendarDays}>My Tickets</TabButton>
-              <TabButton name="settings" activeTab={activeTab} setActiveTab={setActiveTab} icon={Settings}>Settings</TabButton>
-            </nav>
-          </div>
-        </div>
+        <section className="mt-8 grid gap-6 lg:grid-cols-12">
+          <AccountOverviewCard user={user} className="lg:col-span-5" />
+          <ContactInfoCard user={user} className="lg:col-span-7" />
+        </section>
 
-        {/* Tab Content */}
-        <div>
-          {activeTab === 'overview' && <OverviewTab user={user} />}
-          {activeTab === 'events' && <EventsTab user={user} />}
-          {activeTab === 'settings' && <SettingsTab user={user} onLogout={handleLogout} />}
-        </div>
+        <section className="mt-6 grid gap-6 lg:grid-cols-12">
+          <TicketPortfolioCard user={user} className="lg:col-span-8" />
+          <SupportCard className="lg:col-span-4" />
+        </section>
       </main>
     </div>
   );
 }
 
-// --- Components ---
-
-const StatCard = ({ icon: Icon, title, value }: { icon: React.ElementType, title: string, value: string | number }) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm flex items-center space-x-4 hover:shadow-md transition-shadow">
-    <div className="bg-blue-100 p-3 rounded-full">
-      <Icon className="h-6 w-6 text-blue-600" />
-    </div>
-    <div>
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  </div>
-);
-
-const TabButton = ({ name, activeTab, setActiveTab, icon: Icon, children }: any) => (
-  <button
-    onClick={() => setActiveTab(name)}
-    className={`${
-      activeTab === name
-        ? 'border-blue-500 text-blue-600'
-        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
-  >
-    <Icon className="h-5 w-5" />
-    <span>{children}</span>
-  </button>
-);
-
-const OverviewTab = ({ user }: { user: UserProfile }) => (
-  <div className="bg-white p-8 rounded-xl shadow-sm">
-    <h3 className="text-lg font-medium text-gray-900 mb-4">Account Overview</h3>
-    <ul className="space-y-4">
-      <li className="flex items-center space-x-3">
-        <div className="bg-green-100 p-2 rounded-full"><Mail className="h-5 w-5 text-green-600"/></div>
-        <p className="text-sm text-gray-600">
-          Email verified: <span className={`font-medium ${user.emailVerified ? 'text-green-700' : 'text-red-700'}`}>{user.emailVerified ? 'Yes' : 'No'}</span>
-        </p>
-      </li>
-      <li className="flex items-center space-x-3">
-        <div className="bg-blue-100 p-2 rounded-full"><Phone className="h-5 w-5 text-blue-600"/></div>
-        <p className="text-sm text-gray-600">
-          Mobile verified: <span className={`font-medium ${user.mobileVerified ? 'text-green-700' : 'text-red-700'}`}>{user.mobileVerified ? 'Yes' : 'No'}</span>
-        </p>
-      </li>
-       <li className="flex items-center space-x-3">
-        <div className="bg-purple-100 p-2 rounded-full"><CalendarDays className="h-5 w-5 text-purple-600"/></div>
-        <p className="text-sm text-gray-600">Member since: <span className="font-medium text-gray-800">{new Date(user.signupDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</span></p>
-      </li>
-    </ul>
-  </div>
-);
-
-const EventsTab = ({ user }: { user: UserProfile }) => (
-  <div className="bg-white p-8 rounded-xl shadow-sm text-center">
-    <h3 className="text-lg font-medium text-gray-900 mb-4">My Tickets</h3>
-    {user.totalTicketCount > 0 ? (
-      <div>
-        <p className="text-gray-600">You have {user.totalTicketCount} tickets in total.</p>
-        <p className="text-gray-500 mt-2">A list of your event tickets will appear here.</p>
-        {/* This is where you would map over actual ticket data */}
+const ProfileHero = ({
+  user,
+  joinDateLabel,
+  onLogout,
+  isLoggingOut,
+}: {
+  user: UserProfile;
+  joinDateLabel: string;
+  onLogout: () => Promise<void> | void;
+  isLoggingOut: boolean;
+}) => (
+  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center gap-4">
+        <AvatarCircle fullName={user.fullName} imageUrl={user.imageUrl} />
+        <div>
+          <p className="text-xs uppercase tracking-widest text-slate-400">Signed in as</p>
+          <h2 className="text-2xl font-semibold text-slate-900">{user.fullName}</h2>
+          <p className="text-sm text-slate-500">Member since {joinDateLabel}</p>
+          <div className="mt-2 inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+            {user.roleName ?? "General attendee"}
+          </div>
+        </div>
       </div>
-    ) : (
-      <p className="text-gray-500">You have not purchased any tickets yet.</p>
-    )}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <p className="font-semibold text-slate-900">Quick contact</p>
+          <p>{user.email}</p>
+          {user.phone && <p>{user.phone}</p>}
+        </div>
+        <button
+          onClick={onLogout}
+          disabled={isLoggingOut}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <LogOut className="h-4 w-4" />
+          {isLoggingOut ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
+    </div>
+  </section>
+);
+
+const StatCard = ({
+  label,
+  value,
+  icon: Icon,
+  chipClass,
+  iconClass,
+  prefix,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  chipClass: string;
+  iconClass: string;
+  prefix?: string;
+}) => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+    <div className={`mb-3 inline-flex rounded-full px-3 py-2 text-xs font-semibold ${chipClass}`}>{label}</div>
+    <div className="flex items-center justify-between">
+      <p className="text-3xl font-semibold text-slate-900">
+        {prefix}
+        {value}
+      </p>
+      <div className={`rounded-full p-3 ${iconClass}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+    </div>
   </div>
 );
 
-const SettingsTab = ({ user, onLogout }: { user: UserProfile, onLogout: () => void }) => (
-  <div className="bg-white p-8 rounded-xl shadow-sm">
-    <h3 className="text-lg font-medium text-gray-900 mb-6">Profile Information</h3>
-    <div className="space-y-4">
-      <InfoField icon={Mail} label="Email Address" value={user.email} />
-      <InfoField icon={Phone} label="Phone Number" value={user.phone || "Not Provided"} />
-      <InfoField icon={User} label="Username" value={user.username} />
+const AccountOverviewCard = ({ user, className = "" }: { user: UserProfile; className?: string }) => (
+  <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>
+    <h3 className="text-lg font-semibold text-slate-900">Account overview</h3>
+    <p className="mt-1 text-sm text-slate-500">Verification and membership status</p>
+    <dl className="mt-4 space-y-3 text-sm text-slate-600">
+      <InfoRow label="Email verified" value={user.emailVerified ? "Yes" : "No"} positive={user.emailVerified} />
+      <InfoRow label="Mobile verified" value={user.mobileVerified ? "Yes" : "No"} positive={user.mobileVerified} />
+      <InfoRow label="Membership" value={user.roleName ?? "Attendee"} />
+    </dl>
+  </section>
+);
+
+const ContactInfoCard = ({ user, className = "" }: { user: UserProfile; className?: string }) => (
+  <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>
+    <h3 className="text-lg font-semibold text-slate-900">Contact details</h3>
+    <p className="mt-1 text-sm text-slate-500">Keep your information up to date so we can reach you with ticket updates.</p>
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <ContactTile icon={Mail} label="Email" value={user.email} />
+      <ContactTile icon={Phone} label="Phone" value={user.phone ?? "Not provided"} />
+      <ContactTile icon={User} label="Username" value={user.username} />
+      <ContactTile icon={Ticket} label="Role" value={user.roleName ?? "Attendee"} />
     </div>
-    <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
-      <button className="w-full sm:w-auto px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium flex items-center justify-center space-x-2">
-        <Edit className="w-4 h-4"/>
-        <span>Edit Profile</span>
-      </button>
-      <button 
-        onClick={onLogout}
-        className="w-full sm:w-auto px-5 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition font-medium flex items-center justify-center space-x-2"
+  </section>
+);
+
+const TicketPortfolioCard = ({ user, className = "" }: { user: UserProfile; className?: string }) => (
+  <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 className="text-lg font-semibold text-slate-900">My tickets</h3>
+        <p className="text-sm text-slate-500">A quick snapshot of your current and past tickets.</p>
+      </div>
+      <Link
+        href="/events"
+        className="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
       >
-        <LogOut className="w-4 h-4"/>
-        <span>Log Out</span>
-      </button>
+        Find new events
+      </Link>
     </div>
+    <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center text-sm text-slate-500">
+      {user.totalTicketCount > 0
+        ? "Your purchased tickets will appear here once connected to the ticket service."
+        : "You haven't purchased any tickets yet. When you do, they'll show up here."}
+    </div>
+  </section>
+);
+
+const SupportCard = ({ className = "" }: { className?: string }) => (
+  <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>
+    <h3 className="text-lg font-semibold text-slate-900">Need help?</h3>
+    <p className="mt-1 text-sm text-slate-500">We&apos;re here to make sure your event night goes smoothly.</p>
+    <div className="mt-4 space-y-3 text-sm text-slate-600">
+      <a href="mailto:support@eventmanager.com" className="flex items-center gap-2 text-slate-700 hover:text-slate-900">
+        <Mail className="h-4 w-4 text-slate-500" /> support@eventmanager.com
+      </a>
+      <a href="tel:+18005551234" className="flex items-center gap-2 text-slate-700 hover:text-slate-900">
+        <Headphones className="h-4 w-4 text-slate-500" /> +1 (800) 555-1234
+      </a>
+      <div className="flex items-center gap-2 text-slate-700">
+        <LifeBuoy className="h-4 w-4 text-slate-500" /> 24/7 concierge support on event days
+      </div>
+    </div>
+  </section>
+);
+
+const InfoRow = ({ label, value, positive }: { label: string; value: string; positive?: boolean }) => (
+  <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+    <span className="text-sm font-medium text-slate-600">{label}</span>
+    <span className={`text-sm font-semibold ${positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-rose-600"}`}>
+      {value}
+    </span>
   </div>
 );
 
-const InfoField = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string }) => (
-  <div className="flex items-start py-2">
-    <div className="flex-shrink-0 w-12 text-center">
-      <Icon className="h-5 w-5 text-gray-400 mx-auto" />
+const ContactTile = ({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Mail;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <Icon className="h-4 w-4" /> {label}
     </div>
-    <div className="ml-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="font-medium text-gray-800">{value}</p>
-    </div>
+    <p className="mt-2 text-base font-medium text-slate-900">{value}</p>
   </div>
 );
+
+const AvatarCircle = ({ fullName, imageUrl }: { fullName: string; imageUrl?: string | null }) => {
+  const initials = useMemo(() => {
+    if (!fullName) return "?";
+    const parts = fullName.trim().split(" ");
+    if (parts.length === 1) {
+      return parts[0][0]?.toUpperCase();
+    }
+    return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+  }, [fullName]);
+
+  if (imageUrl) {
+    return (
+      <div className="relative h-20 w-20 overflow-hidden rounded-full">
+        <Image src={imageUrl} alt={fullName} fill className="object-cover" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-xl font-semibold text-white">
+      {initials || "?"}
+    </div>
+  );
+};

@@ -18,6 +18,7 @@ import {
 
 import { listEvents } from '@/services/eventService';
 import type { Event } from '@/types/event';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const HERO_IMAGE = '/concert.jpg';
 const CARD_BASE_CLASS =
@@ -101,11 +102,22 @@ function formatDateRange(start: Date, end: Date) {
 }
 
 const EventsPage = () => {
+  const { user: currentUser } = useCurrentUser();
   const [events, setEvents] = useState<EventViewModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | EventStatus>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const signedInName = useMemo(() => {
+    if (!currentUser) {
+      return '';
+    }
+    if (currentUser.fullName && currentUser.fullName.trim()) {
+      const [first] = currentUser.fullName.trim().split(' ');
+      return first || currentUser.fullName;
+    }
+    return currentUser.username ?? currentUser.email;
+  }, [currentUser]);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -212,15 +224,31 @@ const EventsPage = () => {
             </a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/signin" className="text-sm font-medium text-slate-300 transition hover:text-white">
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="hidden rounded-full border border-slate-100/20 bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-white sm:inline-flex"
-            >
-              Create account
-            </Link>
+            {currentUser ? (
+              <>
+                <Link href="/profile" className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:inline">
+                  My tickets
+                </Link>
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center rounded-full border border-white/40 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Hi, {signedInName || 'there'}
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/signin" className="text-sm font-medium text-slate-300 transition hover:text-white">
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="hidden rounded-full border border-slate-100/20 bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-white sm:inline-flex"
+                >
+                  Create account
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

@@ -17,6 +17,7 @@ export const signIn = async (credentials: { email: string; password: string }) =
 
 export const signUp = async (user: {
   fullName: string;
+  username: string;
   email: string;
   phone: string;
   password: string;
@@ -27,8 +28,19 @@ export const signUp = async (user: {
   });
 };
 
-export const logout = () => {
-  localStorage.removeItem("token");
+export const logout = async () => {
+  try {
+    await apiClient("/auth/logout", {
+      method: "POST",
+    });
+  } catch (error) {
+    // The endpoint might not exist yet; swallow the error so we always clear the session client-side.
+    console.warn("Server logout failed or is unavailable", error);
+  } finally {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+    }
+  }
 };
 
 export const getCurrentUser = async (): Promise<UserProfile> => {

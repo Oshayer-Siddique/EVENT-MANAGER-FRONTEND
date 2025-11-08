@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, use } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, use } from 'react';
 import type { ComponentType, MouseEvent, ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -32,6 +32,8 @@ import { getBusinessOrganizationById } from '@/services/businessOrganizationServ
 import { getArtistById } from '@/services/artistService';
 import { getVenueById } from '@/services/venueService';
 import holdService from '@/services/holdService';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEventSeats } from '@/hooks/useEventSeats';
 
 import type { Event, EventTicketDetails, EventTicketTier } from '@/types/event';
 import type { BusinessOrganization } from '@/types/businessOrganization';
@@ -39,7 +41,7 @@ import type { Artist } from '@/types/artist';
 import type { Venue } from '@/types/venue';
 import { Button } from '@/components/ui/button';
 
-import { EventSeat } from '@/types/eventSeat';
+import { EventSeat, EventSeatStatus } from '@/types/eventSeat';
 import SeatMap from '@/components/booking/SeatMap';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 
@@ -75,6 +77,7 @@ const Accordion = ({
   </details>
 );
 
+
 function EventDetailPage({ params }: EventDetailPageProps) {
   const { id } = use(params);
 
@@ -93,6 +96,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const [loadingOrganizers, setLoadingOrganizers] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const { user: currentUser } = useCurrentUser();
 
   const router = useRouter();
   const suggestionsScrollRef = useRef<HTMLDivElement | null>(null);
@@ -240,6 +244,27 @@ function EventDetailPage({ params }: EventDetailPageProps) {
     return ticketDetails?.ticketTiers ?? event?.ticketTiers ?? [];
   }, [event?.ticketTiers, ticketDetails?.ticketTiers]);
 
+  const seatLayoutTypeName = ticketDetails?.seatLayout?.typeName?.toLowerCase();
+  const seatLayoutTypeCode = ticketDetails?.seatLayout?.typeCode;
+  const isFreestyleLayout = seatLayoutTypeName === 'freestyle' || seatLayoutTypeCode === '220';
+  const allowDirectPurchase = isFreestyleLayout || (!ticketDetails?.seatLayout && !event?.seatLayoutId);
+  const normalizeTierKey = useCallback((value?: string | null) => (value ?? '').trim().toLowerCase(), []);
+  const fallbackTierKey = '__default__';
+
+  const {
+    seats: liveSeatInventory,
+    loading: liveSeatLoading,
+    error: liveSeatError,
+    rateLimitedUntil: seatRateLimitedUntil,
+    refresh: refreshSeatInventory,
+  } = useEventSeats(allowDirectPurchase ? id : null, {
+    enabled: allowDirectPurchase,
+    refreshInterval: allowDirectPurchase ? 15000 : undefined,
+  });
+  const freestyleSeats = useMemo(() => (allowDirectPurchase ? liveSeatInventory : []), [allowDirectPurchase, liveSeatInventory]);
+  const loadingFreestyleSeats = allowDirectPurchase ? liveSeatLoading : false;
+
+
   const handleSeatSelect = (seat: EventSeat) => {
     setSelectedSeats(prev => {
       if (prev.some(s => s.eventSeatId === seat.eventSeatId)) {
@@ -298,6 +323,121 @@ function EventDetailPage({ params }: EventDetailPageProps) {
     return selectedSeatSummaries.reduce((total, seat) => total + seat.price, 0);
   }, [selectedSeatSummaries]);
 
+  const reservationSummaryCard = selectedSeatSummaries.length > 0 && (
+    <div
+      className="rounded-2xl border border-emerald-200/80 bg-white/95 p-6 shadow-lg shadow-emerald-100"
+      aria-labelledby="reservation-summary"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 id="reservation-summary" className="text-lg font-semibold text-slate-900">
+              Reservation Summary
+            </h2>
+            <p className="text-sm text-slate-500">Seats are held for 15 minutes once you continue to checkout.</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Selected Seats</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {selectedSeatSummaries.length} · ${totalPrice.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200/80">
+          {selectedSeatSummaries.map(seat => (
+            <li key={seat.id} className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="font-medium text-slate-900">{seat.label}</p>
+                <p className="text-xs text-slate-500">{seat.tierName}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="font-semibold text-slate-900">${seat.price.toFixed(2)}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const seatToRemove = selectedSeats.find(s => s.eventSeatId === seat.id);
+                    if (seatToRemove) {
+                      handleSeatSelect(seatToRemove);
+                    }
+                  }}
+                  aria-label={`Remove seat ${seat.label}`}
+                  className="rounded-full border border-slate-200/80 p-1.5 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {holdError && <p className="text-sm text-rose-600">{holdError}</p>}
+
+        <Button
+          onClick={handleCreateHold}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-80"
+          disabled={isCreatingHold}
+        >
+          {isCreatingHold ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Reserving seats...
+            </>
+          ) : (
+            <>
+              <ShoppingCart className="h-5 w-5" />
+              Proceed to Checkout
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const availableFreestyleSeatsByTier = useMemo(() => {
+    if (!allowDirectPurchase) {
+      return new Map<string, EventSeat[]>();
+    }
+    const lookup = new Map<string, EventSeat[]>();
+    freestyleSeats.forEach(seat => {
+      if (seat.status !== EventSeatStatus.AVAILABLE) {
+        return;
+      }
+      const seatCodeKey = normalizeTierKey(seat.tierCode);
+      const seatTypeKey = normalizeTierKey(seat.type);
+      const keys = new Set<string>();
+      if (seatCodeKey) keys.add(seatCodeKey);
+      if (seatTypeKey) keys.add(seatTypeKey);
+      if (keys.size === 0) {
+        keys.add(fallbackTierKey);
+      }
+      keys.forEach(key => {
+        if (!lookup.has(key)) {
+          lookup.set(key, []);
+        }
+        lookup.get(key)!.push(seat);
+      });
+    });
+    return lookup;
+  }, [allowDirectPurchase, freestyleSeats, normalizeTierKey]);
+
+  const getMaxSelectableForTier = useCallback(
+    (tier: EventTicketTier) => {
+      const remainingSeats = Math.max(tier.totalQuantity - tier.soldQuantity, 0);
+      if (!allowDirectPurchase) {
+        return remainingSeats;
+      }
+      const tierKey = normalizeTierKey(tier.tierCode) || normalizeTierKey(tier.tierName) || fallbackTierKey;
+      const tierSeats = availableFreestyleSeatsByTier.get(tierKey);
+      if (!tierSeats) {
+        return remainingSeats;
+      }
+      return Math.min(remainingSeats, tierSeats.length);
+    },
+    [allowDirectPurchase, availableFreestyleSeatsByTier, normalizeTierKey],
+  );
+
+
   // Offer a simplified filter set that always shows all tiers
   const dynamicFilters = useMemo(() => ['All Tiers'], []);
 
@@ -340,6 +480,17 @@ function EventDetailPage({ params }: EventDetailPageProps) {
       },
     ];
   }, [shareUrl, event?.eventName]);
+
+  const signedInName = useMemo(() => {
+    if (!currentUser) {
+      return '';
+    }
+    if (currentUser.fullName && currentUser.fullName.trim().length > 0) {
+      const [first] = currentUser.fullName.trim().split(' ');
+      return first || currentUser.fullName;
+    }
+    return currentUser.username ?? currentUser.email;
+  }, [currentUser]);
 
   const handleSuggestionScroll = (direction: 'left' | 'right') => {
     const container = suggestionsScrollRef.current;
@@ -445,15 +596,31 @@ function EventDetailPage({ params }: EventDetailPageProps) {
             </a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/signin" className="text-sm font-medium text-slate-300 transition hover:text-white">
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="hidden rounded-full border border-slate-100/20 bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-white sm:inline-flex"
-            >
-              Create account
-            </Link>
+            {currentUser ? (
+              <>
+                <Link href="/profile" className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:inline">
+                  My tickets
+                </Link>
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center rounded-full border border-white/40 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Hi, {signedInName || 'there'}
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/signin" className="text-sm font-medium text-slate-300 transition hover:text-white">
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="hidden rounded-full border border-slate-100/20 bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-white sm:inline-flex"
+                >
+                  Create account
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -486,12 +653,14 @@ function EventDetailPage({ params }: EventDetailPageProps) {
             >
               Explore Ticket Options
             </a>
-            <a
-              href="#seat-map"
-              className="inline-flex items-center gap-2 rounded-full border border-white/70 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            >
-              Jump to Seat Map
-            </a>
+            {!allowDirectPurchase && (
+              <a
+                href="#seat-map"
+                className="inline-flex items-center gap-2 rounded-full border border-white/70 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                Jump to Seat Map
+              </a>
+            )}
           </div>
         </div>
       </section>
@@ -520,7 +689,11 @@ function EventDetailPage({ params }: EventDetailPageProps) {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-semibold text-slate-900">Ticket Options</h2>
-                  <p className="text-sm text-slate-500">Choose the experience that fits your night out.</p>
+                  <p className="text-sm text-slate-500">
+                    {allowDirectPurchase
+                      ? 'Select how many tickets you need—no seat map required for this freestyle event.'
+                      : 'Choose the experience that fits your night out.'}
+                  </p>
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -539,10 +712,37 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                   </Button>
                 ))}
               </div>
+              {allowDirectPurchase && (
+                <div className="mt-2 text-sm text-emerald-700">
+                  {loadingFreestyleSeats
+                    ? 'Checking live availability...'
+                    : liveSeatError
+                      ? seatRateLimitedUntil && seatRateLimitedUntil > Date.now()
+                        ? 'Seat availability is temporarily rate limited. Please try again in a few seconds.'
+                        : (
+                            <button
+                              type="button"
+                              onClick={() => void refreshSeatInventory({ ignoreRateLimit: true })}
+                              className="underline"
+                            >
+                              Refresh seat availability
+                            </button>
+                          )
+                      : 'Pick ticket quantities below and continue when you are ready.'}
+                </div>
+              )}
               <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredTiers.map(tier => {
                   const remainingSeats = Math.max(tier.totalQuantity - tier.soldQuantity, 0);
-                  const isSoldOut = remainingSeats === 0;
+                  const tierKey = normalizeTierKey(tier.tierCode) || normalizeTierKey(tier.tierName) || fallbackTierKey;
+                  const liveCount = allowDirectPurchase
+                    ? availableFreestyleSeatsByTier.get(tierKey)?.length ?? remainingSeats
+                    : remainingSeats;
+                  const maxSelectable = allowDirectPurchase
+                    ? Math.min(liveCount, getMaxSelectableForTier(tier))
+                    : remainingSeats;
+                  const isSoldOut = maxSelectable === 0;
+                  const disableSelection = allowDirectPurchase && isSoldOut;
                   return (
                     <div
                       key={tier.id}
@@ -559,9 +759,25 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                             isSoldOut ? 'text-rose-200' : 'text-emerald-200'
                           }`}
                         >
-                          {isSoldOut ? 'Sold out' : `${remainingSeats} seats remaining`}
+                          {isSoldOut
+                            ? 'Sold out'
+                            : allowDirectPurchase
+                              ? `${liveCount} tickets remaining`
+                              : `${remainingSeats} seats remaining`}
                         </p>
                       </div>
+                      {allowDirectPurchase && (
+                        <div className="pt-2">
+                          <Button
+                            type="button"
+                            onClick={() => router.push(`/events/${id}/ticket/${tier.id}`)}
+                            disabled={disableSelection}
+                            className="w-full rounded-xl bg-white/95 text-sm font-semibold text-[#2F5F7F] hover:bg-white"
+                          >
+                            {disableSelection ? 'Unavailable' : 'Select tickets'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -573,26 +789,33 @@ function EventDetailPage({ params }: EventDetailPageProps) {
               </div>
             </section>
 
-            <section id="seat-map" className={CARD_BASE_CLASS}>
-              <Accordion
-                title="Select Your Seats"
-                defaultOpen
-                className="border-none bg-transparent shadow-none hover:translate-y-0 hover:shadow-none focus-within:shadow-none"
-              >
-                <p className="text-sm text-slate-500">
-                  Tap to highlight seats and build your perfect view of the stage. Expand the map to make your picks.
-                </p>
-                <div className="mt-5 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
-                  <SeatMap
-                    eventId={id}
-                    selectedSeats={selectedSeats}
-                    onSeatSelect={handleSeatSelect}
-                    tiers={tiers}
-                    seatLayout={ticketDetails?.seatLayout}
-                  />
-                </div>
-              </Accordion>
-            </section>
+            {!allowDirectPurchase && (
+              <section id="seat-map" className={CARD_BASE_CLASS}>
+                <Accordion
+                  title="Select Your Seats"
+                  defaultOpen
+                  className="border-none bg-transparent shadow-none hover:translate-y-0 hover:shadow-none focus-within:shadow-none"
+                >
+                  <p className="text-sm text-slate-500">
+                    Tap to highlight seats and build your perfect view of the stage. Expand the map to make your picks.
+                  </p>
+                  <div className="mt-5 lg:grid lg:grid-cols-[3fr,2fr] lg:gap-6">
+                    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
+                      <SeatMap
+                        eventId={id}
+                        selectedSeats={selectedSeats}
+                        onSeatSelect={handleSeatSelect}
+                        tiers={tiers}
+                        seatLayout={ticketDetails?.seatLayout}
+                      />
+                    </div>
+                    {reservationSummaryCard && (
+                      <div className="mt-4 lg:mt-0">{reservationSummaryCard}</div>
+                    )}
+                  </div>
+                </Accordion>
+              </section>
+            )}
           </div>
 
           <aside className="space-y-6 lg:col-span-5 xl:col-span-4">
@@ -621,15 +844,15 @@ function EventDetailPage({ params }: EventDetailPageProps) {
             <section className={CARD_BASE_CLASS}>
               <h2 className="text-lg font-semibold text-slate-900">Event Organizer</h2>
               {loadingOrganizers ? (
-                <p className="mt-4 text-sm text-slate-500">Gathering organizer details…</p>
+                <p className="mt-4 text-sm text-slate-500">Gathering organizer details...</p>
               ) : organizers.length > 0 ? (
                 <div className="mt-4 space-y-5">
                   {organizers.map(organizer => {
                     const socialLinks = [
-                      { label: 'Website', icon: Globe, url: organizer.websiteLink },
-                      { label: 'Facebook', icon: Facebook, url: organizer.facebookLink },
-                      { label: 'Instagram', icon: Instagram, url: organizer.instagramLink },
-                      { label: 'YouTube', icon: Youtube, url: organizer.youtubeLink },
+                      // { label: 'Website', icon: Globe, url: organizer.websiteLink },
+                      // { label: 'Facebook', icon: Facebook, url: organizer.facebookLink },
+                      // { label: 'Instagram', icon: Instagram, url: organizer.instagramLink },
+                      // { label: 'YouTube', icon: Youtube, url: organizer.youtubeLink },
                     ].filter(link => link.url);
 
                     return (
@@ -660,7 +883,25 @@ function EventDetailPage({ params }: EventDetailPageProps) {
 
 
                             </div>
-
+                            {socialLinks.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {socialLinks.map(link => {
+                                  const Icon = link.icon;
+                                  return (
+                                    <a
+                                      key={link.label}
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 rounded-full border border-slate-200/60 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                    >
+                                      <Icon className="h-3.5 w-3.5" />
+                                      {link.label}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -675,7 +916,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
             <section className={CARD_BASE_CLASS}>
               <h2 className="text-lg font-semibold text-slate-900">Featured Artists</h2>
               {loadingArtists ? (
-                <p className="mt-4 text-sm text-slate-500">Gathering artist lineup…</p>
+                <p className="mt-4 text-sm text-slate-500">Gathering artist lineup...</p>
               ) : artists.length > 0 ? (
                 <div className="mt-4 grid gap-4">
                   {artists.map(artist => (
@@ -699,76 +940,6 @@ function EventDetailPage({ params }: EventDetailPageProps) {
               )}
             </section>
 
-            {selectedSeatSummaries.length > 0 && (
-              <section
-                className="rounded-2xl border border-emerald-200/80 bg-white/95 p-6 shadow-lg shadow-emerald-100"
-                aria-labelledby="reservation-summary"
-              >
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h2 id="reservation-summary" className="text-lg font-semibold text-slate-900">
-                        Reservation Summary
-                      </h2>
-                      <p className="text-sm text-slate-500">Seats are held for 15 minutes once you continue to checkout.</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Selected Seats</p>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {selectedSeatSummaries.length} · ${totalPrice.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200/80">
-                    {selectedSeatSummaries.map(seat => (
-                      <li key={seat.id} className="flex items-center justify-between px-4 py-3">
-                        <div>
-                          <p className="font-medium text-slate-900">{seat.label}</p>
-                          <p className="text-xs text-slate-500">{seat.tierName}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="font-semibold text-slate-900">${seat.price.toFixed(2)}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const seatToRemove = selectedSeats.find(s => s.eventSeatId === seat.id);
-                              if (seatToRemove) {
-                                handleSeatSelect(seatToRemove);
-                              }
-                            }}
-                            aria-label={`Remove seat ${seat.label}`}
-                            className="rounded-full border border-slate-200/80 p-1.5 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {holdError && <p className="text-sm text-rose-600">{holdError}</p>}
-
-                  <Button
-                    onClick={handleCreateHold}
-                    className={`flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-80`}
-                    disabled={isCreatingHold}
-                  >
-                    {isCreatingHold ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Reserving seats…
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="h-5 w-5" />
-                        Proceed to Checkout
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </section>
-            )}
           </aside>
         </div>
 
@@ -782,7 +953,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                 <h2 id="upcoming-suggestions" className="text-2xl font-semibold text-slate-900">
                   Upcoming Events You May Like
                 </h2>
-                <p className="text-sm text-slate-500">Discover what’s happening next and keep the excitement going.</p>
+                <p className="text-sm text-slate-500">Discover what&apos;s happening next and keep the excitement going.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -813,7 +984,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
               {loadingUpcoming && (
                 <div className="flex h-40 w-full items-center justify-center text-slate-500">
                   <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2 text-sm">Gathering upcoming events…</span>
+                  <span className="ml-2 text-sm">Gathering upcoming events...</span>
                 </div>
               )}
               {!loadingUpcoming &&
@@ -920,7 +1091,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                 );
               })
             ) : (
-              <p className="text-sm text-slate-500">Preparing share links…</p>
+              <p className="text-sm text-slate-500">Preparing share links...</p>
             )}
           </div>
         </section>
