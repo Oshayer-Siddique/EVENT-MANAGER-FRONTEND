@@ -82,20 +82,28 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
 
   const seatLayoutTypeName = ticketDetails?.seatLayout?.typeName?.toLowerCase();
   const seatLayoutTypeCode = ticketDetails?.seatLayout?.typeCode;
-  const allowDirectPurchase =
-    !ticketDetails?.seatLayout || seatLayoutTypeName === 'freestyle' || seatLayoutTypeCode === '220' || !event?.seatLayoutId;
+  const hasSeatLayout = Boolean(ticketDetails?.seatLayout || event?.seatLayoutId);
+  const allowDirectPurchase = !ticketDetails?.seatLayout || seatLayoutTypeName === 'freestyle' || seatLayoutTypeCode === '220' || !event?.seatLayoutId;
+  const useSeatInventory = allowDirectPurchase && hasSeatLayout;
+  const isFreestyleFlow = allowDirectPurchase && !hasSeatLayout;
   const normalizeTierKey = useCallback((value?: string | null) => (value ?? '').trim().toLowerCase(), []);
 
   const {
-    seats: seatInventory,
-    loading: inventoryLoading,
+    seats: liveSeatInventory,
+    loading: seatInventoryLoading,
     error: seatInventoryError,
     rateLimitedUntil,
-    refresh: refreshSeatInventory,
-  } = useEventSeats(allowDirectPurchase ? id : null, {
-    enabled: allowDirectPurchase,
-    refreshInterval: allowDirectPurchase ? 15000 : undefined,
+    refresh: seatInventoryRefresh,
+  } = useEventSeats(useSeatInventory ? id : null, {
+    enabled: useSeatInventory,
+    refreshInterval: useSeatInventory ? 15000 : undefined,
   });
+
+  const seatInventory = useSeatInventory ? liveSeatInventory : [];
+  const inventoryLoading = useSeatInventory ? seatInventoryLoading : false;
+  const refreshSeatInventory = useSeatInventory
+    ? seatInventoryRefresh
+    : async () => [] as EventSeat[];
 
   useEffect(() => {
     if (!currentUser) {
@@ -215,6 +223,23 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
     try {
       setSubmitting(true);
       setFormError(null);
+
+      if (isFreestyleFlow) {
+        const hold = await holdService.createHold({
+          eventId: id,
+          buyerId: currentUser?.id,
+          tierSelections: [{ tierCode: selectedTier.tierCode, quantity }],
+          expiresAt: new Date(Date.now() + HOLD_DURATION_MS).toISOString(),
+        });
+
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('checkoutContact', JSON.stringify(contactInfo));
+        }
+
+        router.push(`/checkout?holdId=${hold.id}`);
+        return;
+      }
+
       const refreshedSeats = await refreshSeatInventory({ ignoreRateLimit: true });
       const matchKeys = new Set(
         [normalizeTierKey(selectedTier.tierCode), normalizeTierKey(selectedTier.tierName)].filter(Boolean) as string[],

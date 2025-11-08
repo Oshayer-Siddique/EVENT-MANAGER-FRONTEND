@@ -19,7 +19,11 @@ export interface Hold {
 export interface HoldCreate {
     eventId: string;
     buyerId?: string;
-    seatIds: string[];
+    seatIds?: string[];
+    tierSelections?: Array<{
+        tierCode: string;
+        quantity: number;
+    }>;
     expiresAt: string;
 }
 
