@@ -32,11 +32,13 @@ import { getArtistById } from '@/services/artistService';
 import { getVenueById } from '@/services/venueService';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useEventSeats } from '@/hooks/useEventSeats';
+import { getSponsorById } from '@/services/sponsorService';
 
 import type { Event, EventTicketDetails, EventTicketTier } from '@/types/event';
 import type { BusinessOrganization } from '@/types/businessOrganization';
 import type { Artist } from '@/types/artist';
 import type { Venue } from '@/types/venue';
+import type { Sponsor } from '@/types/sponsor';
 import { Button } from '@/components/ui/button';
 
 import { EventSeat, EventSeatStatus } from '@/types/eventSeat';
@@ -96,6 +98,8 @@ function EventDetailPage({ params }: EventDetailPageProps) {
   const suggestionsScrollRef = useRef<HTMLDivElement | null>(null);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [loadingSponsors, setLoadingSponsors] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -225,9 +229,36 @@ function EventDetailPage({ params }: EventDetailPageProps) {
       }
     };
 
+    const loadSponsors = async () => {
+      if (!event.sponsorIds || event.sponsorIds.length === 0) {
+        setSponsors([]);
+        return;
+      }
+
+      setLoadingSponsors(true);
+      try {
+        const results = await Promise.all(
+          event.sponsorIds.map(sponsorId =>
+            getSponsorById(sponsorId).catch(error => {
+              console.error('Failed to load sponsor', sponsorId, error);
+              return null;
+            }),
+          ),
+        );
+        if (!interrupted) {
+          setSponsors(results.filter(Boolean) as Sponsor[]);
+        }
+      } finally {
+        if (!interrupted) {
+          setLoadingSponsors(false);
+        }
+      }
+    };
+
     loadUpcoming();
     loadOrganizers();
     loadArtists();
+    loadSponsors();
 
     return () => {
       interrupted = true;
@@ -266,9 +297,6 @@ function EventDetailPage({ params }: EventDetailPageProps) {
     }
     const lookup = new Map<string, EventSeat[]>();
     freestyleSeats.forEach(seat => {
-      if (seat.status !== EventSeatStatus.AVAILABLE) {
-        return;
-      }
       const seatCodeKey = normalizeTierKey(seat.tierCode);
       const seatTypeKey = normalizeTierKey(seat.type);
       const keys = new Set<string>();
@@ -281,7 +309,9 @@ function EventDetailPage({ params }: EventDetailPageProps) {
         if (!lookup.has(key)) {
           lookup.set(key, []);
         }
-        lookup.get(key)!.push(seat);
+        if (seat.status === EventSeatStatus.AVAILABLE) {
+          lookup.get(key)!.push(seat);
+        }
       });
     });
     return lookup;
@@ -675,6 +705,63 @@ function EventDetailPage({ params }: EventDetailPageProps) {
                 </div>
               </section>
             )}
+
+            <section id="artists" className={`${CARD_BASE_CLASS} mt-6`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Headliners</p>
+                  <h2 className="text-xl font-semibold text-slate-900">Featured Artists</h2>
+                </div>
+              </div>
+              {loadingArtists ? (
+                <p className="mt-4 text-sm text-slate-500">Gathering artist lineup...</p>
+              ) : artists.length > 0 ? (
+                <>
+                  <div className="mt-4 grid gap-4 md:hidden">
+                    {artists.map(artist => (
+                      <div
+                        key={artist.id}
+                        className="overflow-hidden rounded-2xl border border-slate-100 bg-white text-center shadow-sm"
+                      >
+                        <div className="relative h-48 w-full">
+                          <Image
+                            src={artist.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${artist.name} portrait`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="p-3">
+                          <p className="text-base font-semibold text-slate-900">{artist.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 hidden gap-4 overflow-x-auto pb-2 md:flex">
+                    {artists.map(artist => (
+                      <div
+                        key={artist.id}
+                        className="flex w-48 flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white text-center shadow-sm"
+                      >
+                        <div className="relative h-44 w-full">
+                          <Image
+                            src={artist.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${artist.name} portrait`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="p-3">
+                          <p className="text-base font-semibold text-slate-900">{artist.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">Artist lineup will be announced soon.</p>
+              )}
+            </section>
           </div>
 
           <aside className="space-y-6 lg:col-span-5 xl:col-span-4">
@@ -705,100 +792,120 @@ function EventDetailPage({ params }: EventDetailPageProps) {
               {loadingOrganizers ? (
                 <p className="mt-4 text-sm text-slate-500">Gathering organizer details...</p>
               ) : organizers.length > 0 ? (
-                <div className="mt-4 space-y-5">
-                  {organizers.map(organizer => {
-                    const socialLinks = [
-                      // { label: 'Website', icon: Globe, url: organizer.websiteLink },
-                      // { label: 'Facebook', icon: Facebook, url: organizer.facebookLink },
-                      // { label: 'Instagram', icon: Instagram, url: organizer.instagramLink },
-                      // { label: 'YouTube', icon: Youtube, url: organizer.youtubeLink },
-                    ].filter(link => link.url);
-
-                    return (
-                      <div key={organizer.id} className="rounded-xl border border-slate-200/70 bg-slate-50/60 p-4">
-                        <div className="flex items-start gap-4">
-                          <div className="relative h-14 w-14 overflow-hidden rounded-full border border-slate-200">
-                            <Image
-                              src={organizer.imageUrl || ORGANIZER_PLACEHOLDER}
-                              alt={`${organizer.name} logo`}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-900">{organizer.name}</h3>
-
-                            </div>
-                            <div className="space-y-2 text-xs text-slate-500">
-                              {organizer.email && (
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4 text-slate-400" />
-                                  <a href={`mailto:${organizer.email}`} className="text-slate-600 hover:text-slate-900">
-                                    {organizer.email}
-                                  </a>
-                                </div>
-                              )}
-
-
-                            </div>
-                            {socialLinks.length > 0 && (
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {socialLinks.map(link => {
-                                  const Icon = link.icon;
-                                  return (
-                                    <a
-                                      key={link.label}
-                                      href={link.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 rounded-full border border-slate-200/60 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                                    >
-                                      <Icon className="h-3.5 w-3.5" />
-                                      {link.label}
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
+                <>
+                  <div className="mt-4 space-y-4 md:hidden">
+                    {organizers.map(organizer => (
+                      <div
+                        key={organizer.id}
+                        className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                      >
+                        <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-slate-200">
+                          <Image
+                            src={organizer.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${organizer.name} logo`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Organizer</p>
+                          <p className="text-base font-semibold text-slate-900">{organizer.name}</p>
+                          {organizer.email && (
+                            <a
+                              href={`mailto:${organizer.email}`}
+                              className="text-xs text-slate-500 transition hover:text-slate-900"
+                            >
+                              {organizer.email}
+                            </a>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 hidden gap-3 overflow-x-auto pb-2 md:flex">
+                    {organizers.map(organizer => (
+                      <div
+                        key={organizer.id}
+                        className="flex w-52 flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-center shadow-sm"
+                      >
+                        <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-slate-200">
+                          <Image
+                            src={organizer.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${organizer.name} logo`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Organizer</p>
+                          <p className="text-base font-semibold text-slate-900">{organizer.name}</p>
+                          {organizer.email && (
+                            <a
+                              href={`mailto:${organizer.email}`}
+                              className="text-xs text-slate-500 transition hover:text-slate-900"
+                            >
+                              {organizer.email}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <p className="mt-4 text-sm text-slate-500">Organizer details will be announced soon.</p>
               )}
             </section>
 
             <section className={CARD_BASE_CLASS}>
-              <h2 className="text-lg font-semibold text-slate-900">Featured Artists</h2>
-              {loadingArtists ? (
-                <p className="mt-4 text-sm text-slate-500">Gathering artist lineup...</p>
-              ) : artists.length > 0 ? (
-                <div className="mt-4 grid gap-4">
-                  {artists.map(artist => (
-                    <div key={artist.id} className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-slate-50/60 p-3">
-                      <div className="relative h-14 w-14 overflow-hidden rounded-full border border-slate-200">
-                        <Image
-                          src={artist.imageUrl || ORGANIZER_PLACEHOLDER}
-                          alt={`${artist.name} portrait`}
-                          fill
-                          className="object-cover"
-                        />
+              <h2 className="text-lg font-semibold text-slate-900">Event Sponsors</h2>
+              {loadingSponsors ? (
+                <p className="mt-4 text-sm text-slate-500">Loading sponsor lineup...</p>
+              ) : sponsors.length > 0 ? (
+                <>
+                  <div className="mt-4 space-y-3 md:hidden">
+                    {sponsors.map(sponsor => (
+                      <div
+                        key={sponsor.id}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm"
+                      >
+                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200">
+                          <Image
+                            src={sponsor.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${sponsor.name} logo`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900">{sponsor.name}</p>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{artist.name}</p>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 hidden gap-3 overflow-x-auto pb-2 md:flex">
+                    {sponsors.map(sponsor => (
+                      <div
+                        key={sponsor.id}
+                        className="flex w-40 flex-col items-center gap-2 rounded-2xl border border-slate-100 bg-white p-3 text-center shadow-sm"
+                      >
+                        <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-slate-200">
+                          <Image
+                            src={sponsor.imageUrl || ORGANIZER_PLACEHOLDER}
+                            alt={`${sponsor.name} logo`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900">{sponsor.name}</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <p className="mt-4 text-sm text-slate-500">Artist lineup will be announced soon.</p>
+                <p className="mt-4 text-sm text-slate-500">Sponsors will be announced soon.</p>
               )}
             </section>
-
           </aside>
         </div>
 

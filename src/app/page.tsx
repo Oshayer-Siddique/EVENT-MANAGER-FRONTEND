@@ -122,12 +122,15 @@ const getStartingPrice = (event: Event) => {
   })}`;
 };
 
+const normalizeText = (value?: string | null) => (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 type EventCategory = {
   name: string;
   Icon: LucideIcon;
   gradient: string;
   iconClass: string;
   ringClass: string;
+  keywords: string[];
 };
 
 const EVENT_TYPES: EventCategory[] = [
@@ -137,6 +140,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-indigo-500/20 via-indigo-500/10 to-indigo-500/0",
     iconClass: "text-indigo-600",
     ringClass: "ring-indigo-200/70",
+    keywords: ["movie", "film", "cinema", "premiere"],
   },
   {
     name: "Concert",
@@ -144,6 +148,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-rose-500/20 via-rose-500/10 to-rose-500/0",
     iconClass: "text-rose-500",
     ringClass: "ring-rose-200/70",
+    keywords: ["concert", "music", "live"],
   },
   {
     name: "Sports",
@@ -151,6 +156,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-emerald-500/20 via-emerald-500/10 to-emerald-500/0",
     iconClass: "text-emerald-500",
     ringClass: "ring-emerald-200/70",
+    keywords: ["sport", "match", "game", "fitness"],
   },
   {
     name: "Festival",
@@ -158,6 +164,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-amber-500/20 via-amber-500/10 to-amber-500/0",
     iconClass: "text-amber-500",
     ringClass: "ring-amber-200/70",
+    keywords: ["festival", "fest", "fair"],
   },
   {
     name: "Fundraising",
@@ -165,6 +172,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-purple-500/20 via-purple-500/10 to-purple-500/0",
     iconClass: "text-purple-500",
     ringClass: "ring-purple-200/70",
+    keywords: ["fundraising", "fundraiser", "charity", "donation"],
   },
   {
     name: "Workshop",
@@ -172,6 +180,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-sky-500/20 via-sky-500/10 to-sky-500/0",
     iconClass: "text-sky-500",
     ringClass: "ring-sky-200/70",
+    keywords: ["workshop", "training", "class", "bootcamp"],
   },
   {
     name: "Fashion Show",
@@ -179,6 +188,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-pink-500/20 via-pink-500/10 to-pink-500/0",
     iconClass: "text-pink-500",
     ringClass: "ring-pink-200/70",
+    keywords: ["fashion", "runway", "style"],
   },
   {
     name: "Exhibition",
@@ -186,6 +196,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-cyan-500/20 via-cyan-500/10 to-cyan-500/0",
     iconClass: "text-cyan-500",
     ringClass: "ring-cyan-200/70",
+    keywords: ["exhibition", "expo", "gallery", "art"],
   },
   {
     name: "Conference",
@@ -193,6 +204,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-teal-500/20 via-teal-500/10 to-teal-500/0",
     iconClass: "text-teal-500",
     ringClass: "ring-teal-200/70",
+    keywords: ["conference", "business", "summit", "forum"],
   },
   {
     name: "Seminar",
@@ -200,6 +212,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-blue-500/20 via-blue-500/10 to-blue-500/0",
     iconClass: "text-blue-500",
     ringClass: "ring-blue-200/70",
+    keywords: ["seminar", "talk", "lecture"],
   },
   {
     name: "Competitions",
@@ -207,6 +220,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-orange-500/20 via-orange-500/10 to-orange-500/0",
     iconClass: "text-orange-500",
     ringClass: "ring-orange-200/70",
+    keywords: ["competition", "contest", "tournament"],
   },
   {
     name: "Stand-up Comedy",
@@ -214,6 +228,7 @@ const EVENT_TYPES: EventCategory[] = [
     gradient: "from-lime-500/20 via-lime-500/10 to-lime-500/0",
     iconClass: "text-lime-500",
     ringClass: "ring-lime-200/70",
+    keywords: ["comedy", "stand-up", "humor"],
   },
 ];
 
@@ -228,6 +243,7 @@ export default function MelangeHomepage() {
   const [isLoadingArtists, setIsLoadingArtists] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSectionNavOpen, setIsSectionNavOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const signedInName = useMemo(() => {
     if (!currentUser) {
       return "";
@@ -300,8 +316,7 @@ export default function MelangeHomepage() {
         const eventEnd = new Date(event.eventEnd);
         return Number.isFinite(eventEnd.getTime()) && eventEnd >= now;
       })
-      .sort((a, b) => new Date(a.eventStart).getTime() - new Date(b.eventStart).getTime())
-      .slice(0, 12);
+      .sort((a, b) => new Date(a.eventStart).getTime() - new Date(b.eventStart).getTime());
 
     const pastImages = events
       .filter((event) => {
@@ -363,26 +378,70 @@ export default function MelangeHomepage() {
   const heroCategory = heroEvent?.typeName ?? "Featured Event";
   const heroEventUrl = heroEvent ? `/events/${heroEvent.id}` : "/events";
 
+  const categoryKeywordLookup = useMemo(() => {
+    return EVENT_TYPES.reduce<Record<string, string[]>>((acc, category) => {
+      acc[category.name] = category.keywords.map(keyword => normalizeText(keyword));
+      return acc;
+    }, {});
+  }, []);
+
   const filteredUpcomingEvents = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return upcomingEvents;
+    const trimmedSearch = searchTerm.trim();
+    const baseEvents = trimmedSearch
+      ? upcomingEvents.filter((event) => {
+          const venueName = venueLookup[event.venueId]?.venueName ?? "";
+          const haystack = [
+            event.eventName,
+            event.typeName,
+            event.eventDescription,
+            venueName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(trimmedSearch.toLowerCase());
+        })
+      : upcomingEvents;
+
+    if (!selectedCategory) {
+      return baseEvents.slice(0, 12);
     }
 
-    const normalizedTerm = searchTerm.trim().toLowerCase();
-    return upcomingEvents.filter((event) => {
-      const venueName = venueLookup[event.venueId]?.venueName ?? "";
-      const haystack = [
-        event.eventName,
-        event.typeName,
-        event.eventDescription,
-        venueName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalizedTerm);
+    const normalizedCategorySlug = normalizeText(selectedCategory);
+    const categoryKeywords = categoryKeywordLookup[selectedCategory] ?? [];
+    const matches: Event[] = [];
+    const others: Event[] = [];
+    baseEvents.forEach((event) => {
+      const eventCategory = event.typeName?.toLowerCase() ?? '';
+      const eventCategorySlug = normalizeText(event.typeName);
+      const eventCode = event.typeCode?.toLowerCase() ?? '';
+      const eventCodeSlug = normalizeText(event.typeCode);
+      const eventNameSlug = normalizeText(event.eventName);
+      const normalizedNameMatch = Boolean(eventCategorySlug)
+        ? eventCategorySlug.includes(normalizedCategorySlug) || normalizedCategorySlug.includes(eventCategorySlug)
+        : false;
+      const normalizedCodeMatch = Boolean(eventCodeSlug)
+        ? eventCodeSlug.includes(normalizedCategorySlug) || normalizedCategorySlug.includes(eventCodeSlug)
+        : false;
+      const keywordMatch = categoryKeywords.some((keyword) => {
+        const normalizedKeyword = keyword;
+        return (
+          eventCategorySlug.includes(normalizedKeyword) ||
+          eventCodeSlug.includes(normalizedKeyword) ||
+          eventNameSlug.includes(normalizedKeyword)
+        );
+      });
+
+      if (normalizedNameMatch || normalizedCodeMatch || keywordMatch) {
+        matches.push(event);
+      } else {
+        others.push(event);
+      }
     });
-  }, [searchTerm, upcomingEvents, venueLookup]);
+
+    const prioritized = matches.length > 0 ? [...matches, ...others] : baseEvents;
+    return prioritized.slice(0, 12);
+  }, [searchTerm, upcomingEvents, venueLookup, selectedCategory, categoryKeywordLookup]);
 
   const handleScrollTo = useCallback((sectionId: string) => {
     const section = document.getElementById(sectionId);
@@ -665,21 +724,34 @@ export default function MelangeHomepage() {
               ref={categoryScrollRef}
               className="category-scroll flex gap-4 overflow-x-auto scroll-smooth pb-2 pt-2"
             >
-              {EVENT_TYPES.map(({ name, Icon, gradient, iconClass, ringClass }) => (
-                <div
+              {EVENT_TYPES.map(({ name, Icon, gradient, iconClass, ringClass }) => {
+                const isActive = selectedCategory === name;
+                return (
+                  <button
                   key={name}
-                  className="group flex min-w-[100px] flex-col items-center justify-center gap-3 text-center text-gray-700 transition hover:text-gray-900"
-                >
-                  <div
-                    className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${gradient} ring-1 ring-inset ${ringClass} shadow-sm transition duration-300 group-hover:scale-105 group-hover:shadow-md`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory((prev) => (prev === name ? null : name));
+                      handleScrollTo("events");
+                    }}
+                    className={`group flex min-w-[100px] flex-col items-center justify-center gap-3 text-center text-gray-700 transition hover:text-gray-900 ${
+                      isActive ? "text-gray-900" : ""
+                    }`}
+                    aria-pressed={isActive}
                   >
-                    <Icon className={`h-7 w-7 ${iconClass}`} aria-hidden />
-                  </div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wide">
-                    {name}
-                  </span>
-                </div>
-              ))}
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${gradient} ring-2 ring-inset ${
+                        isActive ? `${ringClass} ring-offset-2 ring-offset-white` : ringClass
+                      } shadow-sm transition duration-300 group-hover:scale-105 group-hover:shadow-md`}
+                    >
+                      <Icon className={`h-7 w-7 ${iconClass}`} aria-hidden />
+                    </div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide">
+                      {name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -688,6 +760,20 @@ export default function MelangeHomepage() {
       {/* Upcoming Events Section - Compact Tickify Style */}
       <section id="events" className="py-8 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {selectedCategory && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 mb-4">
+              <span>
+                Showing <span className="font-semibold">{selectedCategory}</span> events first.
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory(null)}
+                className="text-emerald-900 underline decoration-dotted decoration-emerald-500 hover:text-emerald-700"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           {isLoadingEvents ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, index) => (

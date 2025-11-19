@@ -400,30 +400,6 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
                 <X className="h-4 w-4" /> Clear selection
               </button>
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  disabled={saving || selectedCount === 0}
-                  onClick={() => handleUpdateSeatStatus(EventSeatStatus.BLOCKED)}
-                  className={cn(
-                    "inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition",
-                    selectedCount === 0 ? "cursor-not-allowed opacity-50" : "hover:border-rose-300 hover:bg-rose-50"
-                  )}
-                >
-                  <X className="h-4 w-4" /> Block seats
-                </button>
-                <button
-                  type="button"
-                  disabled={saving || selectedCount === 0}
-                  onClick={() => handleUpdateSeatStatus(EventSeatStatus.AVAILABLE)}
-                  className={cn(
-                    "inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 transition",
-                    selectedCount === 0 ? "cursor-not-allowed opacity-50" : "hover:border-emerald-300 hover:bg-emerald-50"
-                  )}
-                >
-                  <Check className="h-4 w-4" /> Mark available
-                </button>
-              </div>
             </div>
           </section>
 
