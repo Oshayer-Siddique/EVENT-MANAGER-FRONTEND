@@ -12,11 +12,14 @@ import TheaterLayoutDesigner, {
   createStateFromDimensions,
 } from "./TheaterLayoutDesigner";
 import type { TheaterDesignerState, TheaterPlanSummary, TheaterLayoutConfiguration } from "@/types/theaterPlan";
+import type { BanquetLayout } from '@/types/banquet';
+import BanquetLayoutBuilder from '@/components/banquet/BanquetLayoutBuilder';
 
 export interface LayoutFormSubmitData {
   layout: Omit<Layout, "id" | "venueId">;
   theaterPlan?: TheaterPlanSummary;
   configuration?: TheaterLayoutConfiguration | null;
+  banquetLayout?: BanquetLayout;
 }
 
 interface LayoutFormProps {
@@ -29,7 +32,7 @@ const layoutTypes = [
   { name: "Theater", code: "200" },
   { name: "Seminar", code: "205" },
   { name: "Conference Hall", code: "206" },
-  { name: "Banquet", code: "210" },
+  { name: "Banquet", code: "230" },
   { name: "Freestyle", code: "220" },
 ];
 
@@ -91,6 +94,7 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
   const [theaterState, setTheaterState] = useState<TheaterDesignerState>(designerDefaults.state);
   const [theaterPlan, setTheaterPlan] = useState<TheaterPlanSummary>(designerDefaults.summary);
   const [designerSeed, setDesignerSeed] = useState<TheaterDesignerState | undefined>(undefined);
+  const [banquetLayout, setBanquetLayout] = useState<BanquetLayout>({ tables: [] });
 
   const [formData, setFormData] = useState({
     layoutName: "",
@@ -124,7 +128,9 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       isActive: initialData.isActive ?? true,
     });
 
-    if (initialData.typeName && theaterLikeTypes.has(initialData.typeName)) {
+    if (initialData.typeName === 'Banquet') {
+      setBanquetLayout({ tables: [] });
+    } else if (initialData.typeName && theaterLikeTypes.has(initialData.typeName)) {
       if (initialData.configuration && initialData.configuration.kind === "theater") {
         const stateFromConfig = initialData.configuration.state;
         const summaryFromConfig = initialData.configuration.summary ?? buildSummary(initialData.configuration.state);
@@ -208,6 +214,31 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
     venueMaxCapacity,
   ]);
 
+  useEffect(() => {
+    if (formData.typeName !== 'Banquet') {
+      return;
+    }
+    const tableCount = banquetLayout.tables.length;
+    const seatCount = banquetLayout.tables.reduce((sum, table) => {
+      const chairs = table.chairs?.length ?? table.chairCount ?? 0;
+      return sum + chairs;
+    }, 0);
+    setFormData(prev => ({
+      ...prev,
+      totalTables: tableCount,
+      chairsPerTable: tableCount > 0 ? Math.round(seatCount / Math.max(tableCount, 1)) : 0,
+      totalCapacity: seatCount,
+      totalRows: tableCount,
+      totalCols: null,
+      standingCapacity: 0,
+    }));
+    if (venueMaxCapacity > 0 && seatCount > venueMaxCapacity) {
+      setCapacityWarning(`Warning: Capacity exceeds venue's maximum of ${venueMaxCapacity}.`);
+    } else {
+      setCapacityWarning('');
+    }
+  }, [banquetLayout, formData.typeName, venueMaxCapacity]);
+
   const handleTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedTypeName = event.target.value;
     const selectedType = layoutTypes.find((type) => type.name === selectedTypeName);
@@ -220,13 +251,19 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       ...prev,
       typeName: selectedType.name,
       typeCode: selectedType.code,
-      totalRows: theaterPlan.rows.filter((row) => row.activeSeatCount > 0).length,
-      totalCols: theaterPlan.columns,
+      totalRows: theaterLikeTypes.has(selectedType.name)
+        ? theaterPlan.rows.filter((row) => row.activeSeatCount > 0).length
+        : 0,
+      totalCols: theaterLikeTypes.has(selectedType.name) ? theaterPlan.columns : null,
       totalTables: 0,
       chairsPerTable: 0,
       standingCapacity: 0,
       totalCapacity: theaterLikeTypes.has(selectedType.name) ? theaterPlan.capacity : 0,
     }));
+
+    if (selectedType.name !== 'Banquet') {
+      setBanquetLayout({ tables: [] });
+    }
 
     const wasTheaterLike = theaterLikeTypes.has(formData.typeName);
     const willBeTheaterLike = theaterLikeTypes.has(selectedType.name);
@@ -288,6 +325,7 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       layout: payload,
       theaterPlan: isTheaterLayout ? theaterPlan : undefined,
       configuration,
+      banquetLayout: formData.typeName === 'Banquet' ? banquetLayout : undefined,
     });
   };
 
@@ -348,28 +386,10 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
           </div>
         </div>
 
-        {!isTheaterLayout && (
+        {!isTheaterLayout && selectedLayoutType?.name !== 'Banquet' && (
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700">Detailed Configuration</h3>
-              {selectedLayoutType?.name === "Banquet" && (
-                <>
-                  <InputField
-                    label="Tables"
-                    name="totalTables"
-                    value={formData.totalTables}
-                    onChange={handleChange}
-                    type="number"
-                  />
-                  <InputField
-                    label="Chairs Per Table"
-                    name="chairsPerTable"
-                    value={formData.chairsPerTable}
-                    onChange={handleChange}
-                    type="number"
-                  />
-                </>
-              )}
               {selectedLayoutType?.name === "Freestyle" && (
                 <InputField
                   label="Standing Capacity"
@@ -385,6 +405,17 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
               <div className="flex min-h-[240px] items-center justify-center">
                 <LayoutPreview {...formData} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {!isTheaterLayout && selectedLayoutType?.name === 'Banquet' && (
+          <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-700">Banquet Designer</h3>
+            <BanquetLayoutBuilder value={banquetLayout} onChange={setBanquetLayout} />
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              <p>Total tables: {formData.totalTables}</p>
+              <p>Total seats: {formData.totalCapacity}</p>
             </div>
           </div>
         )}

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import LayoutPreview from '@/components/previews/LayoutPreview';
+import BanquetSeatDesigner from '@/components/banquet/BanquetSeatDesigner';
 
 interface SeatFormState {
   row: string;
@@ -194,6 +195,53 @@ const SeatManagementPage = () => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <p className="text-slate-500">Seat layout not found.</p>
+      </div>
+    );
+  }
+
+  const isBanquetLayout = layout.typeName?.toLowerCase() === 'banquet'
+    || layout.typeCode?.toLowerCase() === '230';
+
+  if (isBanquetLayout) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => router.push(backHref)}>
+                ← Back to Venue
+              </Button>
+              <Button variant="outline" onClick={() => router.push(`/admin/venue/${venueId}/layout/${layoutId}/edit`)}>
+                Edit Layout
+              </Button>
+            </div>
+            <div className="text-right">
+              <h1 className="text-2xl font-bold text-slate-800">Banquet Tables</h1>
+              <p className="text-sm text-slate-500">{layout.layoutName} · {layout.typeName}</p>
+            </div>
+          </div>
+
+          <BanquetSeatDesigner seatLayoutId={layoutId} onSaved={refreshSeats} />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-black">Generated seats ({seats.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {seats.length === 0 ? (
+                <p className="text-sm text-slate-500">Add tables to generate seats automatically.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2 text-sm text-slate-700">
+                  {seats.map(seat => (
+                    <span key={seat.id} className="rounded-full border border-slate-200 px-3 py-1">
+                      {seat.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

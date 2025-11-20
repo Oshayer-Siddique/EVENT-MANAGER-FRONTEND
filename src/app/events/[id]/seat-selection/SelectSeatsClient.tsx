@@ -10,6 +10,9 @@ import { useEventSeats } from '@/hooks/useEventSeats';
 import { getEvent, getEventTicketDetails } from '@/services/eventService';
 import type { Event, EventTicketDetails } from '@/types/event';
 import type { EventSeat } from '@/types/eventSeat';
+import { getBanquetLayout } from '@/services/banquetLayoutService';
+import type { BanquetLayout } from '@/types/banquet';
+import BanquetSeatMap from '@/components/booking/BanquetSeatMap';
 
 interface SeatSelectionPageProps {
   params: { id: string };
@@ -24,6 +27,8 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<EventSeat[]>([]);
+  const [banquetLayout, setBanquetLayout] = useState<BanquetLayout | null>(null);
+  const [loadingBanquet, setLoadingBanquet] = useState(false);
 
   const { seats: liveSeats } = useEventSeats(id, { enabled: true, refreshInterval: 15000 });
 
@@ -75,6 +80,40 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
     }, 0);
   }, [selectedSeats, ticketDetails?.ticketTiers]);
 
+  const seatLayoutSummary = ticketDetails?.seatLayout;
+  const isBanquetLayout =
+    seatLayoutSummary?.typeName?.toLowerCase() === 'banquet' || seatLayoutSummary?.typeCode?.toLowerCase() === '230';
+
+  useEffect(() => {
+    if (!isBanquetLayout || !seatLayoutSummary?.id) {
+      setBanquetLayout(null);
+      return;
+    }
+    let cancelled = false;
+    const loadBanquetLayout = async () => {
+      try {
+        setLoadingBanquet(true);
+        const layoutData = await getBanquetLayout(seatLayoutSummary.id);
+        if (!cancelled) {
+          setBanquetLayout(layoutData);
+        }
+      } catch (err) {
+        console.error('Failed to load banquet layout', err);
+        if (!cancelled) {
+          setError('We could not load the banquet seating layout.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBanquet(false);
+        }
+      }
+    };
+    void loadBanquetLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBanquetLayout, seatLayoutSummary?.id]);
+
   const handleReviewSelection = () => {
     if (selectedSeats.length === 0) {
       setError('Select at least one seat to continue.');
@@ -106,7 +145,7 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
     );
   }
 
-  const seatLayoutName = ticketDetails?.seatLayout?.layoutName ?? 'Seat map';
+  const seatLayoutName = seatLayoutSummary?.layoutName ?? 'Seat map';
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -136,13 +175,29 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
         )}
 
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-          <SeatMap
-            eventId={id}
-            selectedSeats={selectedSeats}
-            onSeatSelect={handleSeatSelect}
-            tiers={ticketDetails?.ticketTiers ?? event.ticketTiers}
-            seatLayout={ticketDetails?.seatLayout}
-          />
+          {isBanquetLayout ? (
+            loadingBanquet || !banquetLayout ? (
+              <div className="flex h-48 items-center justify-center text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <BanquetSeatMap
+                layout={banquetLayout}
+                seats={liveSeats}
+                selectedSeats={selectedSeats}
+                onSeatSelect={handleSeatSelect}
+                tiers={ticketDetails?.ticketTiers ?? event.ticketTiers}
+              />
+            )
+          ) : (
+            <SeatMap
+              eventId={id}
+              selectedSeats={selectedSeats}
+              onSeatSelect={handleSeatSelect}
+              tiers={ticketDetails?.ticketTiers ?? event.ticketTiers}
+              seatLayout={ticketDetails?.seatLayout}
+            />
+          )}
         </div>
       </main>
 

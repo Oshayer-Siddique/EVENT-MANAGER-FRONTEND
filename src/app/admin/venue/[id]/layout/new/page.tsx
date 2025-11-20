@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createVenueLayout, getVenueById } from "@/services/venueService";
+import { saveBanquetLayout } from '@/services/banquetLayoutService';
 import LayoutForm, { LayoutFormSubmitData } from "@/components/forms/LayoutForm";
 import { Venue } from "@/types/venue";
 import { createSeatsFromPlan } from "@/lib/seating";
@@ -26,13 +27,20 @@ const NewLayoutPage = () => {
     }
   }, [venueId]);
 
-  const handleSubmit = async ({ layout, theaterPlan }: LayoutFormSubmitData) => {
+  const handleSubmit = async ({ layout, theaterPlan, banquetLayout }: LayoutFormSubmitData) => {
     if (!venueId) return;
     setIsSubmitting(true);
     try {
       const createdLayout = await createVenueLayout(venueId, layout);
 
-      if (theaterPlan && theaterPlan.seats.length > 0) {
+      if (layout.typeName === 'Banquet' && banquetLayout) {
+        setIsGeneratingSeats(true);
+        try {
+          await saveBanquetLayout(createdLayout.id, banquetLayout);
+        } finally {
+          setIsGeneratingSeats(false);
+        }
+      } else if (theaterPlan && theaterPlan.seats.length > 0) {
         try {
           setIsGeneratingSeats(true);
           await createSeatsFromPlan(createdLayout.id, theaterPlan);
