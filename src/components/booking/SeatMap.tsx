@@ -2,9 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import LayoutPreview from '@/components/previews/LayoutPreview';
 import { useEventSeats } from '@/hooks/useEventSeats';
+import { getSeatLayoutById } from '@/services/venueService';
 import { EventSeat, EventSeatStatus } from '../../types/eventSeat';
 import type { EventTicketTier, SeatLayoutSummary } from '../../types/event';
+import type { Layout } from '@/types/layout';
+
+const THEATER_LAYOUT_TYPES = new Set(['Theater', 'Seminar', 'Conference Hall']);
 
 interface SeatMapProps {
   eventId: string;
@@ -21,12 +26,52 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
   });
   const [activeTier, setActiveTier] = useState<string>('ALL');
   const [activeSection, setActiveSection] = useState<string>('');
+  const [layoutDetail, setLayoutDetail] = useState<Layout | null>(null);
+  const [loadingLayout, setLoadingLayout] = useState(false);
+  const [layoutError, setLayoutError] = useState<string | null>(null);
 
   const tierLabelMap = useMemo(() => {
     const map = new Map<string, { name: string; price: number }>();
     tiers.forEach(tier => map.set(tier.tierCode, { name: tier.tierName, price: tier.price }));
     return map;
   }, [tiers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!seatLayout?.id || !seatLayout?.typeName || !THEATER_LAYOUT_TYPES.has(seatLayout.typeName)) {
+      setLayoutDetail(null);
+      setLayoutError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadLayout = async () => {
+      try {
+        setLoadingLayout(true);
+        setLayoutError(null);
+        const layout = await getSeatLayoutById(seatLayout.id!);
+        if (!cancelled) {
+          setLayoutDetail(layout);
+        }
+      } catch (err) {
+        console.error('Failed to load layout configuration', err);
+        if (!cancelled) {
+          setLayoutError('Unable to load the exact seating layout.');
+          setLayoutDetail(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLayout(false);
+        }
+      }
+    };
+
+    void loadLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, [seatLayout?.id, seatLayout?.typeName]);
 
   const filteredSeats = useMemo(() => {
     if (activeTier === 'ALL') return seats;
@@ -74,6 +119,13 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
     if (seat.status !== EventSeatStatus.AVAILABLE) return;
     onSeatSelect(seat);
   };
+
+  const theaterPlan = useMemo(() => {
+    if (!layoutDetail?.configuration || layoutDetail.configuration.kind !== 'theater') {
+      return null;
+    }
+    return layoutDetail.configuration.summary;
+  }, [layoutDetail]);
 
   if (loading) {
     return (
@@ -139,6 +191,29 @@ const SeatMap = ({ eventId, selectedSeats, onSeatSelect, tiers, seatLayout }: Se
       </div>
 
       <SeatLegend />
+
+      {theaterPlan && (
+        <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-blue-500">Layout reference</p>
+              <h4 className="text-sm font-semibold text-slate-800">Exact seating layout with walkways</h4>
+              <p className="text-xs text-slate-500">Amber stripes indicate walkways. Seat colors reflect section groupings.</p>
+            </div>
+            {loadingLayout && <span className="text-xs text-slate-500">Refreshing…</span>}
+          </div>
+          {layoutError && <p className="mt-2 text-xs text-rose-500">{layoutError}</p>}
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+            <LayoutPreview
+              typeName={seatLayout?.typeName ?? 'Theater'}
+              totalRows={layoutDetail?.totalRows ?? seatLayout?.totalRows}
+              totalCols={layoutDetail?.totalCols ?? seatLayout?.totalCols}
+              theaterPlan={theaterPlan}
+              configuration={layoutDetail?.configuration ?? null}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1.5">
         {Array.from(sectionGroups.keys()).map(section => (

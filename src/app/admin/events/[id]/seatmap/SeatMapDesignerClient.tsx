@@ -6,9 +6,13 @@ import {
   getEventSeatMap,
   updateSeatAssignments,
 } from "@/services/eventSeatService";
+import { getSeatLayoutById } from "@/services/venueService";
 import type { EventSeatMap, EventSeatMapSeat, SeatAssignmentPayload } from "@/types/seatMap";
 import { EventSeatStatus } from "@/types/eventSeat";
 import { cn } from "@/lib/utils/utils";
+import type { Layout } from "@/types/layout";
+import type { TheaterPlanSummary } from "@/types/theaterPlan";
+import LayoutPreview from "@/components/previews/LayoutPreview";
 import {
   ArrowLeft,
   Calendar,
@@ -45,6 +49,9 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
   const [assignError, setAssignError] = useState<string | null>(null);
   const [selectedSeatIds, setSelectedSeatIds] = useState<Set<string>>(new Set());
   const [activeTierCode, setActiveTierCode] = useState<string | null>(null);
+  const [layoutDetail, setLayoutDetail] = useState<Layout | null>(null);
+  const [loadingLayout, setLoadingLayout] = useState(false);
+  const [layoutPreviewError, setLayoutPreviewError] = useState<string | null>(null);
 
   const loadSeatMap = useCallback(async (showSpinner = true) => {
     try {
@@ -68,6 +75,43 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
   useEffect(() => {
     void loadSeatMap();
   }, [loadSeatMap]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const layoutId = seatMap?.seatLayoutId;
+    if (!layoutId) {
+      setLayoutDetail(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadLayout = async () => {
+      try {
+        setLoadingLayout(true);
+        setLayoutPreviewError(null);
+        const layout = await getSeatLayoutById(layoutId);
+        if (!cancelled) {
+          setLayoutDetail(layout);
+        }
+      } catch (err) {
+        console.error('Failed to fetch layout configuration for preview', err);
+        if (!cancelled) {
+          setLayoutDetail(null);
+          setLayoutPreviewError('Unable to load the exact layout preview.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLayout(false);
+        }
+      }
+    };
+
+    void loadLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, [seatMap?.seatLayoutId]);
 
   const tierColorMap = useMemo(() => {
     if (!seatMap) return new Map<string, string>();
@@ -109,6 +153,13 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
     });
     return counts;
   }, [seatMap]);
+
+  const theaterPlan = useMemo<TheaterPlanSummary | null>(() => {
+    if (!layoutDetail?.configuration || layoutDetail.configuration.kind !== 'theater') {
+      return null;
+    }
+    return layoutDetail.configuration.summary;
+  }, [layoutDetail]);
 
   const selectableStatuses = useMemo(() => new Set<EventSeatStatus>([EventSeatStatus.AVAILABLE, EventSeatStatus.BLOCKED]), []);
   const selectedCount = selectedSeatIds.size;
@@ -275,6 +326,29 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
           </button>
         </div>
       </div>
+
+      {theaterPlan && (
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-blue-500">Layout reference</p>
+              <h2 className="text-lg font-semibold text-slate-900">Exact seating layout</h2>
+              <p className="text-sm text-slate-500">Amber bands indicate walkways exactly as designed in the layout builder.</p>
+            </div>
+            {loadingLayout && <span className="text-xs text-slate-500">Updating preview…</span>}
+          </div>
+          {layoutPreviewError && <p className="mt-2 text-xs text-rose-500">{layoutPreviewError}</p>}
+          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+            <LayoutPreview
+              typeName={seatMap.layout.typeName}
+              totalRows={layoutDetail?.totalRows ?? seatMap.layout.totalRows}
+              totalCols={layoutDetail?.totalCols ?? seatMap.layout.totalCols}
+              theaterPlan={theaterPlan}
+              configuration={layoutDetail?.configuration ?? null}
+            />
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1 space-y-6">

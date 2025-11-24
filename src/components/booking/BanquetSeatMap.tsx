@@ -8,6 +8,17 @@ import type { EventSeat } from '@/types/eventSeat';
 import type { EventTicketTier } from '@/types/event';
 import { cn } from '@/lib/utils/utils';
 
+const TIER_COLORS = [
+  '#2F5F7F',
+  '#0EA5E9',
+  '#EC4899',
+  '#22C55E',
+  '#F97316',
+  '#6366F1',
+  '#14B8A6',
+  '#FACC15',
+];
+
 interface BanquetSeatMapProps {
   layout: BanquetLayout;
   seats: EventSeat[];
@@ -21,11 +32,11 @@ const sanitizeLabel = (value?: string | null) => (value ?? 'TABLE')
   .toUpperCase()
   .replace(/[^A-Z0-9]/g, '') || 'TABLE';
 
-const statusColors: Record<EventSeatStatus, { bg: string; border: string; text: string }> = {
-  AVAILABLE: { bg: '#DEF7EC', border: '#15B981', text: 'text-emerald-700' },
-  BLOCKED: { bg: '#FEE2E2', border: '#FB7185', text: 'text-rose-700' },
-  RESERVED: { bg: '#FDE68A', border: '#F59E0B', text: 'text-amber-700' },
-  SOLD: { bg: '#E5E7EB', border: '#94A3B8', text: 'text-slate-600' },
+const statusStyles: Record<EventSeatStatus, { className: string }> = {
+  AVAILABLE: { className: '' },
+  BLOCKED: { className: 'cursor-not-allowed opacity-90' },
+  RESERVED: { className: 'cursor-not-allowed opacity-90' },
+  SOLD: { className: 'cursor-not-allowed opacity-90' },
 };
 
 const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: BanquetSeatMapProps) => {
@@ -58,10 +69,14 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
     return map;
   }, [seats]);
 
-  const tierLookup = useMemo(() => {
-    const map = new Map<string, EventTicketTier>();
-    tiers.forEach(tier => map.set(tier.tierCode, tier));
-    return map;
+  const { tierLookup, tierColorMap } = useMemo(() => {
+    const lookup = new Map<string, EventTicketTier>();
+    const colorMap = new Map<string, string>();
+    tiers.forEach((tier, index) => {
+      lookup.set(tier.tierCode, tier);
+      colorMap.set(tier.tierCode, TIER_COLORS[index % TIER_COLORS.length]);
+    });
+    return { tierLookup: lookup, tierColorMap: colorMap };
   }, [tiers]);
 
   const tableMetrics = useMemo(() => {
@@ -82,7 +97,8 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
     });
   }, [layout.tables]);
 
-  const padding = 120;
+  const isCompact = canvasWidth < 640;
+  const padding = isCompact ? 80 : 120;
   const bounds = useMemo(() => {
     if (!tableMetrics || tableMetrics.length === 0) {
       return {
@@ -134,6 +150,30 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
 
   return (
     <div className="space-y-4">
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        <div>
+          <p className="font-semibold text-slate-800">Tier legend</p>
+          <p className="text-xs text-slate-500">
+            Colors indicate the ticket tier for each chair. Yellow seats are reserved, red seats are sold or blocked.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {tiers.map((tier, index) => {
+              const color = tierColorMap.get(tier.tierCode) ?? TIER_COLORS[index % TIER_COLORS.length];
+              return (
+                <span
+                  key={tier.tierCode}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+                >
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-slate-800">{tier.tierName}</span>
+                  <span className="text-[11px] text-slate-500">${tier.price.toFixed(2)}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div
         ref={containerRef}
         className="relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
@@ -144,7 +184,9 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
           const normalizedLabel = sanitizeLabel(table.label);
           const tableSeats = seatsByTable.get(normalizedLabel) ?? [];
           const chairs = table.chairs;
-          const scaledRadius = Math.max(40, table.radius * scale);
+          const baseRadius = table.radius;
+          const radiusScaleAdjustment = isCompact ? 0.8 : 1;
+          const scaledRadius = Math.max(32, baseRadius * scale * radiusScaleAdjustment);
           const diameter = scaledRadius * 2;
           const tableX = offsetX + table.x * scale;
           const tableY = offsetY + table.y * scale;
@@ -171,25 +213,41 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
                   return null;
                 }
                 const isSelected = selectedSeats.some(selected => selected.eventSeatId === seat.eventSeatId);
-                const status = statusColors[seat.status];
+                const tierColor = seat.tierCode ? tierColorMap.get(seat.tierCode) ?? '#94A3B8' : '#94A3B8';
+                const colorOverrides = (() => {
+                  if (seat.status === EventSeatStatus.RESERVED) {
+                    return { bg: '#FDE68A', border: '#F59E0B' };
+                  }
+                  if (seat.status === EventSeatStatus.SOLD || seat.status === EventSeatStatus.BLOCKED) {
+                    return { bg: '#FCA5A5', border: '#F87171' };
+                  }
+                  return { bg: withAlpha(tierColor, 0.2), border: tierColor };
+                })();
+                const seatBg = colorOverrides.bg;
+                const borderColor = colorOverrides.border;
+                const statusClass = statusStyles[seat.status]?.className;
                 const tier = seat.tierCode ? tierLookup.get(seat.tierCode) : undefined;
                 const center = scaledRadius;
+                const seatSize = Math.max(isCompact ? 12 : 16, Math.min(28, scaledRadius * 0.4));
                 return (
                   <button
                     key={chair.id}
                     type="button"
                     className={cn(
-                      'absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border text-[9px] font-semibold',
+                      'absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 rounded-full border text-[9px] font-semibold',
                       seat.status === EventSeatStatus.AVAILABLE
                         ? 'hover:scale-105 focus:outline-none focus:ring-2 focus:ring-slate-400'
-                        : 'cursor-not-allowed opacity-70',
+                        : 'focus:outline-none',
+                      statusClass,
                       isSelected && seat.status === EventSeatStatus.AVAILABLE ? 'ring-2 ring-[#2F5F7F]' : '',
                     )}
                     style={{
                       left: center + (scaledRadius * (chair.offsetX ?? 0)),
                       top: center + (scaledRadius * (chair.offsetY ?? 0)),
-                      backgroundColor: status.bg,
-                      borderColor: status.border,
+                      backgroundColor: seatBg,
+                      borderColor,
+                      width: `${seatSize}px`,
+                      height: `${seatSize}px`,
                     }}
                     onClick={() => handleSeatClick(seat)}
                     aria-label={`${seat.label} · ${tier?.tierName ?? seat.tierCode ?? 'Seat'} · ${seat.status}`}
@@ -212,3 +270,12 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
 };
 
 export default BanquetSeatMap;
+
+const withAlpha = (hex: string, alpha: number) => {
+  const sanitized = hex.replace('#', '');
+  const bigint = parseInt(sanitized, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`;
+};
