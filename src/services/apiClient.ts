@@ -4,11 +4,6 @@
  * A lightweight wrapper around the Fetch API for making requests to the backend API.
  * It automatically adds the base URL and the Authorization header with a JWT token
  * if it's available in localStorage.
- *
- * @param url - The endpoint to call (e.g., "/users/me").
- * @param options - Optional request options (e.g., method, body).
- * @returns The JSON response from the API.
- * @throws An error if the API response is not ok.
  */
 export interface ApiClientError extends Error {
   status?: number;
@@ -16,8 +11,38 @@ export interface ApiClientError extends Error {
   retryAfterMs?: number;
 }
 
-export const apiClient = async (url: string, options: RequestInit = {}) => {
-  const baseUrl = "http://localhost:5010/api";
+const API_BASE_URL = "http://localhost:5010/api";
+const MIN_REQUEST_INTERVAL_MS = 200; // timer between calls so the server isn't spammed
+const MAX_RETRIES = 2;
+const DEFAULT_RETRY_AFTER_MS = 1000;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+let lastRequestTimestamp = 0;
+let rateLimitQueue: Promise<void> = Promise.resolve();
+
+const scheduleRequest = () => {
+  rateLimitQueue = rateLimitQueue
+    .then(async () => {
+      const now = Date.now();
+      const elapsed = now - lastRequestTimestamp;
+      const waitTime = Math.max(0, MIN_REQUEST_INTERVAL_MS - elapsed);
+      if (waitTime > 0) {
+        await sleep(waitTime);
+      }
+      lastRequestTimestamp = Date.now();
+    })
+    .catch(() => {
+      // If a previous request failed we still want the queue to keep working
+      lastRequestTimestamp = Date.now();
+    });
+
+  return rateLimitQueue;
+};
+
+const performRequest = async (url: string, options: RequestInit, attempt = 0): Promise<any> => {
+  await scheduleRequest();
+
   // Ensure this code only runs on the client-side
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -32,13 +57,11 @@ export const apiClient = async (url: string, options: RequestInit = {}) => {
   }
 
   // Log the request details for easier debugging
-  console.log(`[API Client] Making ${options.method || 'GET'} request to: ${baseUrl}${url}`);
+  console.log(`[API Client] Making ${options.method || 'GET'} request to: ${API_BASE_URL}${url}`);
   console.log("[API Client] Using token:", token ? `${token.substring(0, 15)}...` : "No token");
-  // The Headers object is not directly serializable with JSON.stringify, so we convert it to an object first.
   console.log("[API Client] Sending headers:", JSON.stringify(Object.fromEntries(requestHeaders.entries()), null, 2));
 
-
-  const res = await fetch(`${baseUrl}${url}`, {
+  const res = await fetch(`${API_BASE_URL}${url}`, {
     ...options,
     headers: requestHeaders,
   });
@@ -57,15 +80,26 @@ export const apiClient = async (url: string, options: RequestInit = {}) => {
         error.retryAfterMs = retryMs;
       }
     }
+
+    if (error.status === 429 && attempt < MAX_RETRIES) {
+      const waitMs = error.retryAfterMs ?? DEFAULT_RETRY_AFTER_MS;
+      console.warn(`[API Client] Received 429. Waiting ${waitMs}ms before retry #${attempt + 1}`);
+      await sleep(waitMs);
+      return performRequest(url, options, attempt + 1);
+    }
+
     throw error;
   }
 
-  // Handle cases where response might be empty
   const contentType = res.headers.get("content-type");
   if (contentType && contentType.indexOf("application/json") !== -1) {
     const text = await res.text();
     return text ? JSON.parse(text) : {};
   }
-  
+
   return {}; // Return empty object for non-json responses or handle as needed
+};
+
+export const apiClient = async (url: string, options: RequestInit = {}) => {
+  return performRequest(url, options);
 };

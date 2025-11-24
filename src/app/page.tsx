@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Search,
   Menu,
@@ -134,14 +135,7 @@ type EventCategory = {
 };
 
 const EVENT_TYPES: EventCategory[] = [
-  {
-    name: "Movie",
-    Icon: Clapperboard,
-    gradient: "from-indigo-500/20 via-indigo-500/10 to-indigo-500/0",
-    iconClass: "text-indigo-600",
-    ringClass: "ring-indigo-200/70",
-    keywords: ["movie", "film", "cinema", "premiere"],
-  },
+
   {
     name: "Concert",
     Icon: Music,
@@ -151,13 +145,22 @@ const EVENT_TYPES: EventCategory[] = [
     keywords: ["concert", "music", "live"],
   },
   {
-    name: "Sports",
-    Icon: Dumbbell,
-    gradient: "from-emerald-500/20 via-emerald-500/10 to-emerald-500/0",
-    iconClass: "text-emerald-500",
-    ringClass: "ring-emerald-200/70",
-    keywords: ["sport", "match", "game", "fitness"],
+    name: "Movie",
+    Icon: Clapperboard,
+    gradient: "from-indigo-500/20 via-indigo-500/10 to-indigo-500/0",
+    iconClass: "text-indigo-600",
+    ringClass: "ring-indigo-200/70",
+    keywords: ["movie", "film", "cinema", "premiere"],
   },
+    {
+    name: "Fashion Show",
+    Icon: Shirt,
+    gradient: "from-pink-500/20 via-pink-500/10 to-pink-500/0",
+    iconClass: "text-pink-500",
+    ringClass: "ring-pink-200/70",
+    keywords: ["fashion", "runway", "style"],
+  },
+
   {
     name: "Festival",
     Icon: PartyPopper,
@@ -174,6 +177,22 @@ const EVENT_TYPES: EventCategory[] = [
     ringClass: "ring-purple-200/70",
     keywords: ["fundraising", "fundraiser", "charity", "donation"],
   },
+    {
+    name: "Sports",
+    Icon: Dumbbell,
+    gradient: "from-emerald-500/20 via-emerald-500/10 to-emerald-500/0",
+    iconClass: "text-emerald-500",
+    ringClass: "ring-emerald-200/70",
+    keywords: ["sport", "match", "game", "fitness"],
+  },
+    {
+    name: "Exhibition",
+    Icon: GalleryVerticalEnd,
+    gradient: "from-cyan-500/20 via-cyan-500/10 to-cyan-500/0",
+    iconClass: "text-cyan-500",
+    ringClass: "ring-cyan-200/70",
+    keywords: ["exhibition", "expo", "gallery", "art"],
+  },
   {
     name: "Workshop",
     Icon: Hammer,
@@ -182,22 +201,8 @@ const EVENT_TYPES: EventCategory[] = [
     ringClass: "ring-sky-200/70",
     keywords: ["workshop", "training", "class", "bootcamp"],
   },
-  {
-    name: "Fashion Show",
-    Icon: Shirt,
-    gradient: "from-pink-500/20 via-pink-500/10 to-pink-500/0",
-    iconClass: "text-pink-500",
-    ringClass: "ring-pink-200/70",
-    keywords: ["fashion", "runway", "style"],
-  },
-  {
-    name: "Exhibition",
-    Icon: GalleryVerticalEnd,
-    gradient: "from-cyan-500/20 via-cyan-500/10 to-cyan-500/0",
-    iconClass: "text-cyan-500",
-    ringClass: "ring-cyan-200/70",
-    keywords: ["exhibition", "expo", "gallery", "art"],
-  },
+
+
   {
     name: "Conference",
     Icon: Presentation,
@@ -462,6 +467,7 @@ export default function MelangeHomepage() {
     ],
     []
   );
+  const primaryNavItems = sectionNavItems.slice(0, 4);
 
   const handleCategoryScroll = (direction: "left" | "right") => {
     const container = categoryScrollRef.current;
@@ -476,89 +482,79 @@ export default function MelangeHomepage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Top utility bar */}
-      <div className="bg-gray-900 text-gray-100">
-        <div className="mx-auto flex flex-col items-center justify-center gap-2 px-4 py-2 text-[11px] sm:flex-row sm:justify-between sm:gap-4 sm:text-xs sm:px-6 lg:max-w-7xl lg:px-8">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:justify-start">
-            <span className="hidden items-center gap-1 text-gray-300 sm:inline-flex">
-              <MapPin className="h-3.5 w-3.5" /> Dhaka, Bangladesh
-            </span>
-            <span className="hidden items-center gap-1 text-gray-300 md:inline-flex">
-              <Clock className="h-3.5 w-3.5" /> Serving events round the clock
-            </span>
-            <span className="flex items-center gap-1 text-gray-300">
-              <Tag className="h-3.5 w-3.5" /> Exclusive experiences made simple
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleScrollTo("events")}
-              className="hidden text-gray-300 transition hover:text-white sm:inline"
-            >
-              Browse Events
-            </button>
-            <Link href="/admin" className="hidden text-gray-300 transition hover:text-white sm:inline">
-              Become an Organizer
-            </Link>
-            <a href="mailto:support@melange.com" className="rounded-full border border-white/20 px-3 py-1 text-gray-100 transition hover:border-white hover:text-white">
-              Customer Support
-            </a>
-          </div>
-        </div>
-      </div>
-
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold text-gray-900">Melange</h1>
-                <p className="text-xs text-gray-500">Tickets Made Easy</p>
+      <nav className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/90 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3 md:py-4">
+            <div className="flex min-w-[200px] flex-1 items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center rounded-full px-4 py-2 transition hover:opacity-90"
+                aria-label="Ticketify homepage"
+              >
+                <Image
+                  src="/pictures/ticketify%20logo-01.svg"
+                  alt="Ticketify logo"
+                  width={100}
+                  height={20}
+                  priority
+                />
+              </Link>
+              <div className="hidden min-w-0 flex-col leading-tight sm:flex">
+                {/* <span className="text-sm font-semibold tracking-tight text-gray-900">Ticketify</span> */}
+                <span className="text-xs font-semibold text-gray-500">GET IN GET EXCITED</span>
               </div>
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
-              <button onClick={() => handleScrollTo("overview")} className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
-                Overview
-              </button>
-              <button onClick={() => handleScrollTo("events")} className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
-                Events
-              </button>
-              <button onClick={() => handleScrollTo("artists")} className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
-                Artists
-              </button>
-              <button onClick={() => handleScrollTo("past-events")} className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
-                Highlights
-              </button>
+            <div className="hidden flex-shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 shadow-inner lg:flex">
+              {primaryNavItems.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleScrollTo(id)}
+                  className="rounded-full px-3 py-1 text-sm text-gray-600 transition hover:bg-white hover:text-gray-900"
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden flex-shrink-0 items-center gap-3 md:flex">
+
               {currentUser ? (
                 <>
-                  <Link href="/profile" className="text-sm font-medium text-gray-700 transition hover:text-gray-900">
+                  <Link
+                    href="/profile"
+                    className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-900"
+                  >
                     My tickets
                   </Link>
                   <Link
                     href="/profile"
-                    className="px-6 py-2 rounded-full border border-gray-300 text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
+                    className="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
                   >
                     Hi, {signedInName || 'there'}
                   </Link>
                 </>
               ) : (
-                <Link href="/signin" className="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-full transition-colors hover:bg-gray-800">
+                <Link
+                  href="/signin"
+                  className="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+                >
                   Sign In
                 </Link>
               )}
             </div>
 
             {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2" aria-label="Toggle navigation">
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            <div className="flex flex-shrink-0 items-center lg:hidden">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="inline-flex items-center rounded-full border border-gray-200 p-2 text-gray-700 shadow-sm transition hover:bg-gray-50"
+                aria-label="Toggle navigation"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
             </div>
           </div>
@@ -566,29 +562,44 @@ export default function MelangeHomepage() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 bg-white">
-            <div className="px-4 pt-2 pb-3 space-y-1">
-              <button onClick={() => handleScrollTo("overview")} className="block w-full px-3 py-2 text-left text-base font-medium text-gray-700">
-                Overview
+          <div className="border-b border-gray-200/70 bg-white/95 px-4 pb-4 pt-2 text-sm shadow-sm backdrop-blur md:hidden">
+            {primaryNavItems.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => handleScrollTo(id)}
+                className="flex w-full items-center justify-between border-b border-gray-100 py-2 text-left font-medium text-gray-700 last:border-none"
+              >
+                {label}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
               </button>
-              <button onClick={() => handleScrollTo("events")} className="block w-full px-3 py-2 text-left text-base font-medium text-gray-700">
-                Events
-              </button>
-              <button onClick={() => handleScrollTo("artists")} className="block w-full px-3 py-2 text-left text-base font-medium text-gray-700">
-                Artists
-              </button>
-              <button onClick={() => handleScrollTo("past-events")} className="block w-full px-3 py-2 text-left text-base font-medium text-gray-700">
-                Highlights
-              </button>
+            ))}
+            <div className="mt-3 space-y-2">
+              <Link
+                href="/admin"
+                className="block w-full rounded-full border border-gray-200 px-4 py-2 text-center text-sm font-medium text-gray-700"
+              >
+                Host with Ticketify
+              </Link>
               {currentUser ? (
-                <Link
-                  href="/profile"
-                  className="mt-2 block w-full rounded-full border border-gray-300 px-6 py-2 text-center text-sm font-semibold text-gray-900"
-                >
-                  Hi, {signedInName || 'there'}
-                </Link>
+                <>
+                  <Link
+                    href="/profile"
+                    className="block w-full rounded-full border border-gray-200 px-4 py-2 text-center text-sm font-medium text-gray-800"
+                  >
+                    My tickets
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="block w-full rounded-full bg-gray-900 px-4 py-2 text-center text-sm font-semibold text-white"
+                  >
+                    Hi, {signedInName || 'there'}
+                  </Link>
+                </>
               ) : (
-                <Link href="/signin" className="mt-2 block w-full rounded-full bg-gray-900 px-6 py-2 text-center text-sm font-medium text-white">
+                <Link
+                  href="/signin"
+                  className="block w-full rounded-full bg-gray-900 px-4 py-2 text-center text-sm font-semibold text-white"
+                >
                   Sign In
                 </Link>
               )}
@@ -937,7 +948,6 @@ export default function MelangeHomepage() {
                   {artist.description && (
                     <p className="mb-1 text-xs text-gray-600 line-clamp-2">{artist.description}</p>
                   )}
-                  <p className="text-[10px] uppercase text-gray-500">{artist.mobile || artist.email || "Stay tuned"}</p>
                 </div>
               ))}
             </div>

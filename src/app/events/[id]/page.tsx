@@ -475,7 +475,7 @@ function EventDetailPage({ params }: EventDetailPageProps) {
       <header className="border-b border-slate-900/60 bg-slate-950/95 text-slate-100 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 text-sm sm:px-6">
           <Link href="/" className="text-base font-semibold text-slate-100">
-            Event Manager
+            Ticketify
           </Link>
           <nav className="hidden items-center gap-5 text-slate-300 md:flex">
             <Link href="/events#events-grid" className="transition hover:text-white">
