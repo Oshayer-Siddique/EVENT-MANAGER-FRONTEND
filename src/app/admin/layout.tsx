@@ -32,8 +32,8 @@ const Sidebar = () => {
       <div className="mb-10 flex items-center space-x-4">
         <MelangeLogo />
         <div>
-          <h1 className="text-xl font-bold text-sky-900">Melange</h1>
-          <p className="text-xs text-gray-500">Your gateway to every event</p>
+          <h1 className="text-xl font-bold text-sky-900">Ticketify</h1>
+          <p className="text-xs text-gray-500">GET IN GET EXCITED</p>
         </div>
       </div>
       <nav>

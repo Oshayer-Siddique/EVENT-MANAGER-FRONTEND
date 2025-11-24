@@ -335,20 +335,22 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
                         <Paintbrush className="h-3 w-3" /> {seats.every(seat => selectedSeatIds.has(seat.seatId)) ? "Deselect row" : "Select row"}
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {seats.map(seat => {
-                        const isSelected = selectedSeatIds.has(seat.seatId);
-                        const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
-                        return (
-                          <SeatButton
-                            key={seat.seatId}
-                            seat={seat}
-                            color={color}
-                            selected={isSelected}
-                            onClick={() => toggleSeatSelection(seat)}
-                          />
-                        );
-                      })}
+                    <div className="overflow-x-auto">
+                      <div className="flex min-w-max gap-2 pb-1">
+                        {seats.map(seat => {
+                          const isSelected = selectedSeatIds.has(seat.seatId);
+                          const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
+                          return (
+                            <SeatButton
+                              key={seat.seatId}
+                              seat={seat}
+                              color={color}
+                              selected={isSelected}
+                              onClick={() => toggleSeatSelection(seat)}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 ))

@@ -31,7 +31,6 @@ const statusColors: Record<EventSeatStatus, { bg: string; border: string; text: 
 const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: BanquetSeatMapProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(920);
-  const canvasHeight = 520;
 
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
@@ -65,11 +64,58 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
     return map;
   }, [tiers]);
 
-  const maxX = layout.tables.reduce((max, table) => Math.max(max, table.x ?? 0), 300);
-  const widthScale = maxX > 0 ? canvasWidth / maxX : 1;
+  const tableMetrics = useMemo(() => {
+    if (!layout.tables.length) {
+      return null;
+    }
+    return layout.tables.map(table => {
+      const radius = table.radius ?? 60;
+      return {
+        id: table.id,
+        radius,
+        x: table.x ?? 0,
+        y: table.y ?? 0,
+        rotation: table.rotation ?? 0,
+        label: table.label,
+        chairs: table.chairs ?? [],
+      };
+    });
+  }, [layout.tables]);
 
-  const maxY = layout.tables.reduce((max, table) => Math.max(max, table.y ?? 0), 300);
-  const heightScale = maxY > 0 ? canvasHeight / maxY : 1;
+  const padding = 120;
+  const bounds = useMemo(() => {
+    if (!tableMetrics || tableMetrics.length === 0) {
+      return {
+        minX: 0,
+        maxX: canvasWidth,
+        minY: 0,
+        maxY: 520,
+      };
+    }
+    return tableMetrics.reduce(
+      (acc, table) => {
+        const minX = table.x - table.radius;
+        const maxX = table.x + table.radius;
+        const minY = table.y - table.radius;
+        const maxY = table.y + table.radius;
+        return {
+          minX: Math.min(acc.minX, minX),
+          maxX: Math.max(acc.maxX, maxX),
+          minY: Math.min(acc.minY, minY),
+          maxY: Math.max(acc.maxY, maxY),
+        };
+      },
+      { minX: Number.POSITIVE_INFINITY, maxX: Number.NEGATIVE_INFINITY, minY: Number.POSITIVE_INFINITY, maxY: Number.NEGATIVE_INFINITY }
+    );
+  }, [tableMetrics, canvasWidth]);
+
+  const viewWidth = Math.max(1, bounds.maxX - bounds.minX) + padding * 2;
+  const viewHeight = Math.max(1, bounds.maxY - bounds.minY) + padding * 2;
+  const derivedHeight = Math.max(420, Math.min(720, (viewHeight / viewWidth) * canvasWidth));
+  const canvasHeight = Number.isFinite(derivedHeight) ? derivedHeight : 520;
+  const scale = Math.min(canvasWidth / viewWidth, canvasHeight / viewHeight);
+  const offsetX = (canvasWidth - viewWidth * scale) / 2 - (bounds.minX - padding) * scale;
+  const offsetY = (canvasHeight - viewHeight * scale) / 2 - (bounds.minY - padding) * scale;
 
   const handleSeatClick = (seat: EventSeat) => {
     if (seat.status !== EventSeatStatus.AVAILABLE) {
@@ -90,21 +136,29 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
     <div className="space-y-4">
       <div
         ref={containerRef}
-        className="relative h-[520px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+        className="relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+        style={{ height: `${canvasHeight}px` }}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle,_#e2e8f0_1px,_transparent_1px)] [background-size:20px_20px]" />
-        {layout.tables.map(table => {
+        {tableMetrics?.map(table => {
           const normalizedLabel = sanitizeLabel(table.label);
           const tableSeats = seatsByTable.get(normalizedLabel) ?? [];
-          const chairs = table.chairs ?? [];
-          const tableX = (table.x ?? 0) * widthScale;
-          const tableY = (table.y ?? 0) * heightScale;
-          const radius = table.radius ?? 60;
+          const chairs = table.chairs;
+          const scaledRadius = Math.max(40, table.radius * scale);
+          const diameter = scaledRadius * 2;
+          const tableX = offsetX + table.x * scale;
+          const tableY = offsetY + table.y * scale;
           return (
             <div
               key={table.id}
-              className="absolute h-[120px] w-[120px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-300 bg-white shadow"
-              style={{ left: tableX, top: tableY, transform: `translate(-50%, -50%) rotate(${table.rotation ?? 0}deg)` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-300 bg-white shadow"
+              style={{
+                left: tableX,
+                top: tableY,
+                width: diameter,
+                height: diameter,
+                transform: `translate(-50%, -50%) rotate(${table.rotation}deg)`,
+              }}
             >
               <div className="absolute inset-0 flex flex-col items-center justify-center text-xs font-semibold text-slate-700">
                 <span>{table.label}</span>
@@ -119,6 +173,7 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
                 const isSelected = selectedSeats.some(selected => selected.eventSeatId === seat.eventSeatId);
                 const status = statusColors[seat.status];
                 const tier = seat.tierCode ? tierLookup.get(seat.tierCode) : undefined;
+                const center = scaledRadius;
                 return (
                   <button
                     key={chair.id}
@@ -131,8 +186,8 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
                       isSelected && seat.status === EventSeatStatus.AVAILABLE ? 'ring-2 ring-[#2F5F7F]' : '',
                     )}
                     style={{
-                      left: 60 + (radius * (chair.offsetX ?? 0)),
-                      top: 60 + (radius * (chair.offsetY ?? 0)),
+                      left: center + (scaledRadius * (chair.offsetX ?? 0)),
+                      top: center + (scaledRadius * (chair.offsetY ?? 0)),
                       backgroundColor: status.bg,
                       borderColor: status.border,
                     }}
