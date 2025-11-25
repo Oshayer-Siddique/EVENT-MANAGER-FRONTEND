@@ -1,3 +1,5 @@
+'use client';
+
 import { apiClient } from "./apiClient";
 import { TicketResponse, TicketCreateRequest, TicketCheckInRequest, TicketRefundRequest } from "../types/ticket";
 

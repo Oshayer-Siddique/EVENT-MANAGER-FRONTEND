@@ -1,3 +1,5 @@
+'use client';
+
 import { apiClient } from "./apiClient";
 import { EventSeat } from "../types/eventSeat";
 import { EventSeatMap, SeatAssignmentPayload } from "../types/seatMap";

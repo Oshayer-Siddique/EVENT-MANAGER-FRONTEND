@@ -1,3 +1,5 @@
+'use client';
+
 import { apiClient } from './apiClient';
 import { BusinessOrganization } from '../types/businessOrganization';
 

@@ -1,3 +1,5 @@
+'use client';
+
 import { createSeatForLayout, deleteSeatForLayout, getSeatsForLayout, updateSeatForLayout } from "@/services/seatService";
 import type { TheaterPlanSummary } from "@/types/theaterPlan";
 import type { Seat, SeatUpdateRequest } from "@/types/seat";

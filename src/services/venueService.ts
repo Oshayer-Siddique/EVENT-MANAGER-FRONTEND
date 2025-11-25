@@ -1,3 +1,5 @@
+'use client';
+
 import { apiClient } from './apiClient';
 import { deleteSeatForLayout, getSeatsForLayout } from './seatService';
 import { Venue } from '../types/venue';

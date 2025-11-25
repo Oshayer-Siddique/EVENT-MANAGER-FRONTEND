@@ -1,3 +1,5 @@
+'use client';
+
 // src/services/apiClient.ts
 
 /**

@@ -1,3 +1,5 @@
+'use client';
+
 // src/services/authService.ts
 import { apiClient } from "./apiClient";
 import { UserProfile } from "@/types/user";

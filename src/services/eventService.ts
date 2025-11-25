@@ -1,3 +1,5 @@
+'use client';
+
 import { apiClient } from "./apiClient";
 import { Event, CreateEventRequest, UpdateEventRequest, EventTicketDetails, SeatInventorySyncRequest } from "../types/event";
 import { EventSeat } from "../types/eventSeat";
