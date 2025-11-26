@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createVenueLayout, getVenueById } from "@/services/venueService";
 import { saveBanquetLayout } from '@/services/banquetLayoutService';
+import { saveHybridLayout } from '@/services/hybridLayoutService';
 import LayoutForm, { LayoutFormSubmitData } from "@/components/forms/LayoutForm";
 import { Venue } from "@/types/venue";
 import { createSeatsFromPlan } from "@/lib/seating";
@@ -27,7 +28,7 @@ const NewLayoutPage = () => {
     }
   }, [venueId]);
 
-  const handleSubmit = async ({ layout, theaterPlan, banquetLayout }: LayoutFormSubmitData) => {
+  const handleSubmit = async ({ layout, theaterPlan, banquetLayout, hybridLayout }: LayoutFormSubmitData) => {
     if (!venueId) return;
     setIsSubmitting(true);
     try {
@@ -37,6 +38,13 @@ const NewLayoutPage = () => {
         setIsGeneratingSeats(true);
         try {
           await saveBanquetLayout(createdLayout.id, banquetLayout);
+        } finally {
+          setIsGeneratingSeats(false);
+        }
+      } else if (layout.typeName === 'Hybrid' && hybridLayout) {
+        setIsGeneratingSeats(true);
+        try {
+          await saveHybridLayout(createdLayout.id, hybridLayout);
         } finally {
           setIsGeneratingSeats(false);
         }

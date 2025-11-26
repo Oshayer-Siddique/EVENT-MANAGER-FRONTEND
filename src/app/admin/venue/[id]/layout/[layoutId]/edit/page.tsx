@@ -8,6 +8,7 @@ import { Layout } from "@/types/layout";
 import { Venue } from "@/types/venue";
 import { deleteVenueLayout, getSeatLayoutById, getVenueById, updateVenueLayout } from "@/services/venueService";
 import { replaceSeatsFromPlan } from "@/lib/seating";
+import { saveHybridLayout } from '@/services/hybridLayoutService';
 
 const EditLayoutPage = () => {
   const router = useRouter();
@@ -45,13 +46,20 @@ const EditLayoutPage = () => {
     load();
   }, [layoutId, router, venueId]);
 
-  const handleSubmit = async ({ layout: updatedLayout, theaterPlan }: LayoutFormSubmitData) => {
+  const handleSubmit = async ({ layout: updatedLayout, theaterPlan, hybridLayout }: LayoutFormSubmitData) => {
     if (!venueId || !layoutId) return;
     setIsSubmitting(true);
     try {
       await updateVenueLayout(venueId, layoutId, updatedLayout);
 
-      if (theaterPlan) {
+      if (updatedLayout.typeName === 'Hybrid' && hybridLayout) {
+        try {
+          setIsRegeneratingSeats(true);
+          await saveHybridLayout(layoutId, hybridLayout);
+        } finally {
+          setIsRegeneratingSeats(false);
+        }
+      } else if (theaterPlan) {
         try {
           setIsRegeneratingSeats(true);
           await replaceSeatsFromPlan(layoutId, theaterPlan);

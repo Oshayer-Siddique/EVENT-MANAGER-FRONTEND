@@ -10,6 +10,9 @@ import { getBanquetLayout } from "@/services/banquetLayoutService";
 import { getSeatLayoutById } from "@/services/venueService";
 import BanquetAdminSeatMap from "@/components/admin/BanquetAdminSeatMap";
 import type { BanquetLayout } from "@/types/banquet";
+import { getHybridLayout } from "@/services/hybridLayoutService";
+import type { HybridLayoutConfiguration } from "@/types/hybrid";
+import HybridSeatMap from "@/components/hybrid/HybridSeatMap";
 import type { EventSeatMap, EventSeatMapSeat, SeatAssignmentPayload } from "@/types/seatMap";
 import { EventSeatStatus } from "@/types/eventSeat";
 import { cn } from "@/lib/utils/utils";
@@ -60,6 +63,9 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
   const [banquetLayout, setBanquetLayout] = useState<BanquetLayout | null>(null);
   const [loadingBanquetPreview, setLoadingBanquetPreview] = useState(false);
   const [banquetPreviewError, setBanquetPreviewError] = useState<string | null>(null);
+  const [hybridLayoutConfig, setHybridLayoutConfig] = useState<HybridLayoutConfiguration | null>(null);
+  const [loadingHybridPreview, setLoadingHybridPreview] = useState(false);
+  const [hybridPreviewError, setHybridPreviewError] = useState<string | null>(null);
 
   const loadSeatMap = useCallback(async (showSpinner = true) => {
     try {
@@ -198,6 +204,15 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
     return normalizedName === 'banquet' || normalizedCode === '230';
   }, [seatMap?.layout]);
 
+  const isHybridLayout = useMemo(() => {
+    if (!seatMap?.layout) {
+      return false;
+    }
+    const normalizedName = seatMap.layout.typeName ? seatMap.layout.typeName.toLowerCase() : undefined;
+    const normalizedCode = seatMap.layout.typeCode ? seatMap.layout.typeCode.toLowerCase() : undefined;
+    return normalizedName === 'hybrid' || normalizedCode === '240';
+  }, [seatMap?.layout]);
+
   const layoutRows: LayoutRowDefinition[] | null = useMemo(() => {
     if (!theaterPlan) {
       return null;
@@ -277,6 +292,42 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
       cancelled = true;
     };
   }, [isBanquetLayout, seatMap?.seatLayoutId]);
+
+  useEffect(() => {
+    if (!isHybridLayout || !seatMap?.seatLayoutId) {
+      setHybridLayoutConfig(null);
+      setHybridPreviewError(null);
+      setLoadingHybridPreview(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadHybridPreview = async () => {
+      try {
+        setLoadingHybridPreview(true);
+        setHybridPreviewError(null);
+        const layout = await getHybridLayout(seatMap.seatLayoutId);
+        if (!cancelled) {
+          setHybridLayoutConfig(layout);
+        }
+      } catch (err) {
+        console.error('Failed to load hybrid layout preview', err);
+        if (!cancelled) {
+          setHybridLayoutConfig(null);
+          setHybridPreviewError('We could not load the hybrid seating preview.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHybridPreview(false);
+        }
+      }
+    };
+
+    void loadHybridPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHybridLayout, seatMap?.seatLayoutId]);
 
   const selectableStatuses = useMemo(() => new Set<EventSeatStatus>([EventSeatStatus.AVAILABLE, EventSeatStatus.BLOCKED]), []);
   const selectedCount = selectedSeatIds.size;
@@ -493,7 +544,43 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
             </section>
           )}
 
-          {!isBanquetLayout && (
+          {isHybridLayout && (
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">Hybrid preview</h2>
+                  <p className="text-sm text-slate-500">This mirrors the custom seating canvas guests interact with.</p>
+                </div>
+                {loadingHybridPreview && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+              </div>
+
+              {hybridPreviewError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  {hybridPreviewError}
+                </div>
+              )}
+
+              {loadingHybridPreview ? (
+                <div className="flex h-56 items-center justify-center text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : hybridLayoutConfig ? (
+                <HybridSeatMap
+                  configuration={hybridLayoutConfig}
+                  seats={seatMap.seats}
+                  selectedSeatIds={selectedSeatIds}
+                  selectableStatuses={selectableStatuses}
+                  onToggleSeat={toggleSeatSelection}
+                />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  Configure the hybrid layout to preview it here.
+                </div>
+              )}
+            </section>
+          )}
+
+          {!isBanquetLayout && !isHybridLayout && (
             <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
               <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

@@ -1,4 +1,7 @@
 import type { TheaterLayoutConfiguration } from "./theaterPlan";
+import type { HybridLayoutConfiguration } from "./hybrid";
+
+export type LayoutConfiguration = TheaterLayoutConfiguration | HybridLayoutConfiguration | null;
 
 export interface Layout {
   id: string;
@@ -13,5 +16,5 @@ export interface Layout {
   standingCapacity?: number;
   totalCapacity: number;
   isActive: boolean;
-  configuration?: TheaterLayoutConfiguration | null;
+  configuration?: LayoutConfiguration;
 }

@@ -1,8 +1,10 @@
 "use client";
 
 import React from 'react';
+import { LayoutTemplate } from 'lucide-react';
 
 import type { TheaterPlanSummary, TheaterLayoutConfiguration } from "@/types/theaterPlan";
+import type { HybridLayoutConfiguration } from "@/types/hybrid";
 
 type SeatDef = TheaterPlanSummary["seats"][number];
 
@@ -14,7 +16,7 @@ interface LayoutPreviewProps {
   chairsPerTable?: number;
   standingCapacity?: number;
   theaterPlan?: TheaterPlanSummary;
-  configuration?: TheaterLayoutConfiguration | null;
+  configuration?: TheaterLayoutConfiguration | HybridLayoutConfiguration | null;
 }
 
 const Seat = () => <div className="w-3 h-3 bg-gray-400 rounded-sm"></div>;
@@ -39,7 +41,8 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
   theaterPlan,
   configuration,
 }) => {
-  const computedPlan = theaterPlan ?? (configuration?.kind === "theater" ? configuration.summary : undefined);
+  const computedPlan = theaterPlan ?? (configuration && configuration.kind === "theater" ? configuration.summary : undefined);
+  const hybridConfig = configuration && configuration.kind === "hybrid" ? configuration : undefined;
 
   const renderTheater = () => {
     const planToUse = computedPlan;
@@ -168,6 +171,63 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
     </div>
   );
 
+  const renderHybrid = () => {
+    if (!hybridConfig) {
+      return (
+        <div className="rounded-lg border-2 border-dashed bg-gray-100 p-4 text-center text-sm text-gray-500">
+          Build your hybrid layout using the designer to see a live preview.
+        </div>
+      );
+    }
+
+    const { canvas, sections, elements, seats } = hybridConfig;
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <LayoutTemplate className="h-3.5 w-3.5" /> Zones: {sections.length}
+          </span>
+          <span>Seats: {seats.length}</span>
+        </div>
+        <div className="relative h-64 overflow-hidden rounded-lg border border-dashed border-slate-200 bg-slate-50">
+          <svg viewBox={`0 0 ${canvas.width} ${canvas.height}`} className="h-full w-full">
+            <rect width="100%" height="100%" fill="#f8fafc" />
+            {sections.map(section => (
+              <rect
+                key={section.id}
+                x={section.x}
+                y={section.y}
+                width={section.width ?? 180}
+                height={section.height ?? 140}
+                fill={section.color ?? '#bfdbfe'}
+                fillOpacity={0.35}
+                stroke={section.color ?? '#3b82f6'}
+                strokeWidth={2}
+              />
+            ))}
+            {elements.map(element => (
+              <rect
+                key={element.id}
+                x={(element.x ?? 0) - (element.width ?? 200) / 2}
+                y={(element.y ?? 0) - (element.height ?? 80) / 2}
+                width={element.width ?? 200}
+                height={element.height ?? 80}
+                rx={10}
+                ry={10}
+                fill={element.color ?? '#0f172a'}
+                opacity={0.8}
+              />
+            ))}
+            {seats.map(seat => (
+              <circle key={seat.id} cx={seat.x} cy={seat.y} r={6} fill="#0f172a" opacity={0.85} />
+            ))}
+          </svg>
+        </div>
+      </div>
+    );
+  };
+
   const renderFreestyle = () => (
     <div className="p-8 bg-gray-100 rounded-lg border-2 border-dashed flex justify-center items-center">
       <div className="text-center">
@@ -184,9 +244,14 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
       return renderTheater();
     case 'Banquet':
       return renderBanquet();
+    case 'Hybrid':
+      return renderHybrid();
     case 'Freestyle':
       return renderFreestyle();
     default:
+      if (hybridConfig) {
+        return renderHybrid();
+      }
       return <div className="text-sm text-gray-500">Select a layout type to see a preview.</div>;
   }
 };

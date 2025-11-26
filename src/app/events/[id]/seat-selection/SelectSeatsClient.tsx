@@ -13,6 +13,9 @@ import type { EventSeat } from '@/types/eventSeat';
 import { getBanquetLayout } from '@/services/banquetLayoutService';
 import type { BanquetLayout } from '@/types/banquet';
 import BanquetSeatMap from '@/components/booking/BanquetSeatMap';
+import { getHybridLayout } from '@/services/hybridLayoutService';
+import type { HybridLayoutConfiguration } from '@/types/hybrid';
+import HybridSeatMap from '@/components/hybrid/HybridSeatMap';
 
 interface SeatSelectionPageProps {
   params: { id: string };
@@ -29,6 +32,8 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
   const [selectedSeats, setSelectedSeats] = useState<EventSeat[]>([]);
   const [banquetLayout, setBanquetLayout] = useState<BanquetLayout | null>(null);
   const [loadingBanquet, setLoadingBanquet] = useState(false);
+  const [hybridLayout, setHybridLayout] = useState<HybridLayoutConfiguration | null>(null);
+  const [loadingHybrid, setLoadingHybrid] = useState(false);
 
   const { seats: liveSeats } = useEventSeats(id, { enabled: true, refreshInterval: 15000 });
 
@@ -81,8 +86,10 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
   }, [selectedSeats, ticketDetails?.ticketTiers]);
 
   const seatLayoutSummary = ticketDetails?.seatLayout;
-  const isBanquetLayout =
-    seatLayoutSummary?.typeName?.toLowerCase() === 'banquet' || seatLayoutSummary?.typeCode?.toLowerCase() === '230';
+  const layoutTypeName = seatLayoutSummary?.typeName?.toLowerCase();
+  const layoutTypeCode = seatLayoutSummary?.typeCode?.toLowerCase();
+  const isBanquetLayout = layoutTypeName === 'banquet' || layoutTypeCode === '230';
+  const isHybridLayout = layoutTypeName === 'hybrid' || layoutTypeCode === '240';
 
   useEffect(() => {
     if (!isBanquetLayout || !seatLayoutSummary?.id) {
@@ -113,6 +120,36 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
       cancelled = true;
     };
   }, [isBanquetLayout, seatLayoutSummary?.id]);
+
+  useEffect(() => {
+    if (!isHybridLayout || !seatLayoutSummary?.id) {
+      setHybridLayout(null);
+      return;
+    }
+    let cancelled = false;
+    const loadHybrid = async () => {
+      try {
+        setLoadingHybrid(true);
+        const layoutData = await getHybridLayout(seatLayoutSummary.id);
+        if (!cancelled) {
+          setHybridLayout(layoutData);
+        }
+      } catch (err) {
+        console.error('Failed to load hybrid layout', err);
+        if (!cancelled) {
+          setError('We could not load the hybrid seating layout.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHybrid(false);
+        }
+      }
+    };
+    void loadHybrid();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHybridLayout, seatLayoutSummary?.id]);
 
   const handleReviewSelection = () => {
     if (selectedSeats.length === 0) {
@@ -187,6 +224,20 @@ export default function SelectSeatsClient({ params }: SeatSelectionPageProps) {
                 selectedSeats={selectedSeats}
                 onSeatSelect={handleSeatSelect}
                 tiers={ticketDetails?.ticketTiers ?? event.ticketTiers}
+              />
+            )
+          ) : isHybridLayout ? (
+            loadingHybrid || !hybridLayout ? (
+              <div className="flex h-48 items-center justify-center text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <HybridSeatMap
+                configuration={hybridLayout}
+                seats={liveSeats}
+                selectedSeatIds={new Set(selectedSeats.map(seat => seat.seatId))}
+                selectableStatuses={new Set([EventSeatStatus.AVAILABLE])}
+                onToggleSeat={seat => handleSeatSelect(seat as EventSeat)}
               />
             )
           ) : (

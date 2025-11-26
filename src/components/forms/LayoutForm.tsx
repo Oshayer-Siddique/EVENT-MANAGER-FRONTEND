@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import LayoutPreview from "@/components/previews/LayoutPreview";
 import { Layout } from "@/types/layout";
+import type { HybridLayoutConfiguration } from "@/types/hybrid";
+import { createDefaultHybridConfiguration } from "@/types/hybrid";
 
 import TheaterLayoutDesigner, {
   buildSummary,
@@ -14,12 +16,14 @@ import TheaterLayoutDesigner, {
 import type { TheaterDesignerState, TheaterPlanSummary, TheaterLayoutConfiguration } from "@/types/theaterPlan";
 import type { BanquetLayout } from '@/types/banquet';
 import BanquetLayoutBuilder from '@/components/banquet/BanquetLayoutBuilder';
+import HybridLayoutDesigner from './HybridLayoutDesigner';
 
 export interface LayoutFormSubmitData {
   layout: Omit<Layout, "id" | "venueId">;
   theaterPlan?: TheaterPlanSummary;
-  configuration?: TheaterLayoutConfiguration | null;
+  configuration?: TheaterLayoutConfiguration | HybridLayoutConfiguration | null;
   banquetLayout?: BanquetLayout;
+  hybridLayout?: HybridLayoutConfiguration;
 }
 
 interface LayoutFormProps {
@@ -30,7 +34,7 @@ interface LayoutFormProps {
 
 const layoutTypes = [
   { name: "Theater", code: "200" },
-
+  { name: "Hybrid", code: "240" },
   { name: "Banquet", code: "230" },
   { name: "Freestyle", code: "220" },
 ];
@@ -94,6 +98,7 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
   const [theaterPlan, setTheaterPlan] = useState<TheaterPlanSummary>(designerDefaults.summary);
   const [designerSeed, setDesignerSeed] = useState<TheaterDesignerState | undefined>(undefined);
   const [banquetLayout, setBanquetLayout] = useState<BanquetLayout>({ tables: [] });
+  const [hybridLayout, setHybridLayout] = useState<HybridLayoutConfiguration>(createDefaultHybridConfiguration());
 
   const [formData, setFormData] = useState({
     layoutName: "",
@@ -129,6 +134,12 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
 
     if (initialData.typeName === 'Banquet') {
       setBanquetLayout({ tables: [] });
+    } else if (initialData.typeName === 'Hybrid') {
+      if (initialData.configuration && initialData.configuration.kind === 'hybrid') {
+        setHybridLayout(initialData.configuration);
+      } else {
+        setHybridLayout(createDefaultHybridConfiguration());
+      }
     } else if (initialData.typeName && theaterLikeTypes.has(initialData.typeName)) {
       if (initialData.configuration && initialData.configuration.kind === "theater") {
         const stateFromConfig = initialData.configuration.state;
@@ -188,6 +199,25 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       return;
     }
 
+    if (formData.typeName === 'Hybrid') {
+      const capacity = hybridLayout.seats.length;
+      setFormData(prev => ({
+        ...prev,
+        totalCapacity: capacity,
+        totalRows: 0,
+        totalCols: null,
+        totalTables: hybridLayout.sections.length,
+        chairsPerTable: 0,
+        standingCapacity: 0,
+      }));
+      if (venueMaxCapacity > 0 && capacity > venueMaxCapacity) {
+        setCapacityWarning(`Warning: Capacity exceeds venue's maximum of ${venueMaxCapacity}.`);
+      } else {
+        setCapacityWarning('');
+      }
+      return;
+    }
+
     let capacity = 0;
     if (formData.typeName === "Banquet") {
       capacity = formData.totalTables * formData.chairsPerTable;
@@ -210,6 +240,8 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
     theaterPlan.capacity,
     theaterPlan.columns,
     activeSeatRowCount,
+    hybridLayout.sections.length,
+    hybridLayout.seats.length,
     venueMaxCapacity,
   ]);
 
@@ -263,6 +295,9 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
     if (selectedType.name !== 'Banquet') {
       setBanquetLayout({ tables: [] });
     }
+    if (selectedType.name === 'Hybrid') {
+      setHybridLayout(createDefaultHybridConfiguration());
+    }
 
     const wasTheaterLike = theaterLikeTypes.has(formData.typeName);
     const willBeTheaterLike = theaterLikeTypes.has(selectedType.name);
@@ -302,15 +337,18 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
     }
 
     const isTheaterLayout = theaterLikeTypes.has(formData.typeName);
+    const isHybrid = formData.typeName === 'Hybrid';
 
     if (isTheaterLayout && theaterPlan.capacity === 0) {
       alert("Please configure at least one seat for this layout.");
       return;
     }
 
-    const configuration: TheaterLayoutConfiguration | null = isTheaterLayout
-      ? { kind: "theater", state: theaterState, summary: theaterPlan }
-      : null;
+    const configuration = isTheaterLayout
+      ? ({ kind: "theater", state: theaterState, summary: theaterPlan } satisfies TheaterLayoutConfiguration)
+      : isHybrid
+        ? hybridLayout
+        : null;
 
     const payload: Omit<Layout, "id" | "venueId"> = {
       ...formData,
@@ -325,10 +363,12 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       theaterPlan: isTheaterLayout ? theaterPlan : undefined,
       configuration,
       banquetLayout: formData.typeName === 'Banquet' ? banquetLayout : undefined,
+      hybridLayout: isHybrid ? hybridLayout : undefined,
     });
   };
 
   const selectedLayoutType = layoutTypes.find((type) => type.name === formData.typeName);
+  const isHybridLayout = selectedLayoutType?.name === 'Hybrid';
   const isTheaterLayout = theaterLikeTypes.has(formData.typeName);
 
   return (
@@ -385,19 +425,17 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
           </div>
         </div>
 
-        {!isTheaterLayout && selectedLayoutType?.name !== 'Banquet' && (
+        {selectedLayoutType?.name === 'Freestyle' && (
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700">Detailed Configuration</h3>
-              {selectedLayoutType?.name === "Freestyle" && (
-                <InputField
-                  label="Standing Capacity"
-                  name="standingCapacity"
-                  value={formData.standingCapacity}
-                  onChange={handleChange}
-                  type="number"
-                />
-              )}
+              <InputField
+                label="Standing Capacity"
+                name="standingCapacity"
+                value={formData.standingCapacity}
+                onChange={handleChange}
+                type="number"
+              />
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold text-gray-700">Preview</h3>
@@ -423,6 +461,23 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
               <p>Total tables: {formData.totalTables}</p>
               <p>Total seats: {formData.totalCapacity}</p>
+            </div>
+          </div>
+        )}
+
+        {isHybridLayout && (
+          <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-700">Hybrid Designer</h3>
+                <p className="text-sm text-gray-500">Combine zones, stages, walkways, and precise seat placement.</p>
+              </div>
+            </div>
+            <HybridLayoutDesigner value={hybridLayout} onChange={layout => setHybridLayout({ ...layout, kind: 'hybrid' })} />
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              <p>Zones: {hybridLayout.sections.length}</p>
+              <p>Fixtures: {hybridLayout.elements.length}</p>
+              <p>Total seats: {hybridLayout.seats.length}</p>
             </div>
           </div>
         )}
