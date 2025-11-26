@@ -37,6 +37,43 @@ interface TheaterLayoutDesignerProps {
 const DEFAULT_ROWS = 1;
 const DEFAULT_COLS = 1;
 
+const normalizeWalkwayColumns = (columns: number[] | undefined, columnCount: number) => {
+  if (!Array.isArray(columns)) {
+    return [];
+  }
+  const unique = Array.from(
+    new Set(
+      columns.filter((index) => Number.isInteger(index) && index >= 0 && index < columnCount),
+    ),
+  );
+  unique.sort((a, b) => a - b);
+  return unique;
+};
+
+const applyWalkwayColumnsToRows = (rows: TheaterRowState[], walkwayColumns: number[]) => {
+  if (!walkwayColumns.length) {
+    return rows;
+  }
+  const walkwaySet = new Set(walkwayColumns);
+  return rows.map((row) => {
+    if (row.isWalkway) {
+      return row;
+    }
+    let mutated = false;
+    const seats = row.seats.map((seat, columnIndex) => {
+      if (!walkwaySet.has(columnIndex)) {
+        return seat;
+      }
+      if (!seat.enabled) {
+        return seat;
+      }
+      mutated = true;
+      return { ...seat, enabled: false };
+    });
+    return mutated ? { ...row, seats } : row;
+  });
+};
+
 const createSeatCell = (rowIndex: number, columnIndex: number): TheaterSeatCell => ({
   id: `seat-${rowIndex}-${columnIndex}-${Math.random().toString(36).slice(2, 6)}`,
   enabled: true,
@@ -73,6 +110,7 @@ const createDefaultState = (): TheaterDesignerState => {
     rows,
     sections,
     columnCount: DEFAULT_COLS,
+    walkwayColumns: [],
   };
 };
 
@@ -96,6 +134,7 @@ const createStateFromDimensions = (
     rows,
     sections,
     columnCount: Math.max(1, columnCount),
+    walkwayColumns: [],
   };
 };
 
@@ -151,6 +190,7 @@ const buildSummary = (state: TheaterDesignerState): TheaterPlanSummary => {
     columns: state.columnCount,
     sections: state.sections,
     capacity: seats.length,
+    walkwayColumns: normalizeWalkwayColumns(state.walkwayColumns, state.columnCount),
   };
 };
 
@@ -179,13 +219,24 @@ const getSeatNumberForColumn = (row: TheaterRowState, columnIndex: number) => {
   return null;
 };
 
+const hydrateDesignerState = (raw?: TheaterDesignerState): TheaterDesignerState => {
+  const base = raw ?? createDefaultState();
+  const walkwayColumns = normalizeWalkwayColumns(base.walkwayColumns, base.columnCount);
+  const rows = applyWalkwayColumnsToRows(base.rows, walkwayColumns);
+  return {
+    ...base,
+    walkwayColumns,
+    rows,
+  };
+};
+
 const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
   value,
   onChange,
   venueMaxCapacity,
   onInitialized,
 }) => {
-  const initialState = useMemo(() => value ?? createDefaultState(), [value]);
+  const initialState = useMemo(() => hydrateDesignerState(value), [value]);
   const [state, setState] = useState<TheaterDesignerState>(initialState);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(
     () => initialState.rows[0]?.id ?? null,
@@ -202,8 +253,9 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
     }
 
     valueHashRef.current = hash;
-    setState(value);
-    setSelectedRowId(value.rows[0]?.id ?? null);
+    const hydrated = hydrateDesignerState(value);
+    setState(hydrated);
+    setSelectedRowId(hydrated.rows[0]?.id ?? null);
     onInitialized?.();
   }, [value, onInitialized]);
 
@@ -266,7 +318,7 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
     const target = Math.max(1, count);
     setState((prev) => {
       if (target === prev.columnCount) return prev;
-      const rows = prev.rows.map((row, rowIndex) => {
+      const resizedRows = prev.rows.map((row, rowIndex) => {
         if (target > prev.columnCount) {
           const additions = Array.from({ length: target - prev.columnCount }, (_, idx) => ({
             ...createSeatCell(rowIndex, prev.columnCount + idx),
@@ -276,7 +328,12 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
         }
         return { ...row, seats: row.seats.slice(0, target) };
       });
-      return { ...prev, columnCount: target, rows };
+      const walkwayColumns = normalizeWalkwayColumns(
+        prev.walkwayColumns.filter((index) => index < target),
+        target,
+      );
+      const rows = applyWalkwayColumnsToRows(resizedRows, walkwayColumns);
+      return { ...prev, columnCount: target, rows, walkwayColumns };
     });
   }, []);
 
@@ -284,11 +341,15 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
     let nextSelection: string | null = null;
     setState((prev) => {
       const sectionId = prev.rows[index]?.sectionId ?? prev.sections[0]?.id ?? "section-1";
-      const newRow = createRow(index + 1, prev.columnCount, sectionId, walkway);
+      const walkwayColumns = normalizeWalkwayColumns(prev.walkwayColumns, prev.columnCount);
+      const newRow = applyWalkwayColumnsToRows(
+        [createRow(index + 1, prev.columnCount, sectionId, walkway)],
+        walkwayColumns,
+      )[0];
       nextSelection = newRow.id;
       const rows = [...prev.rows];
       rows.splice(index + 1, 0, newRow);
-      return { ...prev, rows };
+      return { ...prev, rows, walkwayColumns };
     });
     updateSelection(nextSelection);
   }, []);
@@ -375,6 +436,9 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
 
   const toggleSeat = useCallback((rowIndex: number, columnIndex: number) => {
     setState((prev) => {
+      if (prev.walkwayColumns.includes(columnIndex)) {
+        return prev;
+      }
       const rows = prev.rows.map((row, index) => {
         if (index !== rowIndex || row.isWalkway) return row;
         const seats = row.seats.map((seat, seatIndex) =>
@@ -388,6 +452,9 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
 
   const toggleColumn = useCallback((columnIndex: number) => {
     setState((prev) => {
+      if (prev.walkwayColumns.includes(columnIndex)) {
+        return prev;
+      }
       const hasEnabledSeat = prev.rows.some(
         (row) => !row.isWalkway && row.seats[columnIndex]?.enabled,
       );
@@ -399,6 +466,32 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
         return { ...row, seats };
       });
       return { ...prev, rows };
+    });
+  }, []);
+
+  const toggleWalkwayColumn = useCallback((columnIndex: number) => {
+    setState((prev) => {
+      const current = normalizeWalkwayColumns(prev.walkwayColumns, prev.columnCount);
+      const walkwaySet = new Set(current);
+      const isWalkway = walkwaySet.has(columnIndex);
+      if (isWalkway) {
+        walkwaySet.delete(columnIndex);
+        return { ...prev, walkwayColumns: Array.from(walkwaySet).sort((a, b) => a - b) };
+      }
+
+      const rows = prev.rows.map((row) => {
+        if (row.isWalkway) return row;
+        const seats = row.seats.map((seat, seatIndex) => {
+          if (seatIndex !== columnIndex) return seat;
+          if (!seat.enabled) return seat;
+          return { ...seat, enabled: false };
+        });
+        return { ...row, seats };
+      });
+
+      walkwaySet.add(columnIndex);
+      const walkwayColumns = Array.from(walkwaySet).sort((a, b) => a - b);
+      return { ...prev, rows, walkwayColumns };
     });
   }, []);
 
@@ -429,14 +522,15 @@ const TheaterLayoutDesigner: React.FC<TheaterLayoutDesignerProps> = ({
     }));
   }, [sectionMap]);
 
-  const capacityWarning = useMemo(() => {
-    if (!venueMaxCapacity || venueMaxCapacity <= 0) return null;
-    if (summary.capacity <= venueMaxCapacity) return null;
-    return `Capacity exceeds venue limit (${venueMaxCapacity}).`;
-  }, [summary.capacity, venueMaxCapacity]);
+const capacityWarning = useMemo(() => {
+  if (!venueMaxCapacity || venueMaxCapacity <= 0) return null;
+  if (summary.capacity <= venueMaxCapacity) return null;
+  return `Capacity exceeds venue limit (${venueMaxCapacity}).`;
+}, [summary.capacity, venueMaxCapacity]);
 
 const seatedRowCount = summary.rows.filter((row) => !row.isWalkway && row.activeSeatCount > 0).length;
 const headerColumns = Array.from({ length: state.columnCount }, (_, columnIndex) => columnIndex + 1);
+const walkwayColumnSet = useMemo(() => new Set(state.walkwayColumns), [state.walkwayColumns]);
 
 const gridTemplate = inspectorOpen
   ? "lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_320px]"
@@ -572,16 +666,38 @@ return (
             <div className="flex items-center justify-center text-[11px] font-semibold uppercase text-slate-500">
               Row
             </div>
-            {headerColumns.map((label, index) => (
-              <button
-                type="button"
-                key={`column-${label}`}
-                onClick={() => toggleColumn(index)}
-                className="flex h-8 w-full items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100"
-              >
-                {label}
-              </button>
-            ))}
+            {headerColumns.map((label, index) => {
+              const isWalkwayColumn = walkwayColumnSet.has(index);
+              return (
+                <div key={`column-${label}`} className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleColumn(index)}
+                    disabled={isWalkwayColumn}
+                    className={cn(
+                      "flex h-8 w-full items-center justify-center rounded-md border text-[11px] font-semibold transition",
+                      isWalkwayColumn
+                        ? "cursor-not-allowed border-amber-200 bg-amber-50 text-amber-600"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100",
+                    )}
+                  >
+                    {label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleWalkwayColumn(index)}
+                    className={cn(
+                      "w-full rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                      isWalkwayColumn
+                        ? "border-amber-400 bg-amber-50 text-amber-600"
+                        : "border-slate-200 bg-white text-slate-400 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600",
+                    )}
+                  >
+                    {isWalkwayColumn ? "Walkway" : "Add gap"}
+                  </button>
+                </div>
+              );
+            })}
 
             {state.rows.map((row, rowIndex) => {
               const section = sectionMap.get(row.sectionId);
@@ -600,26 +716,34 @@ return (
                     {row.label || String.fromCharCode(65 + rowIndex)}
                   </div>
                     {row.seats.map((seat, columnIndex) => {
+                      const isColumnWalkway = walkwayColumnSet.has(columnIndex);
                       const seatNumber = getSeatNumberForColumn(row, columnIndex);
-                      const isSeat = seat.enabled && !row.isWalkway;
+                      const isWalkwayCell = row.isWalkway || isColumnWalkway;
+                      const isSeat = seat.enabled && !isWalkwayCell;
+                      const cellTitle = isWalkwayCell
+                        ? "Walkway"
+                        : isSeat && seatNumber
+                          ? `${row.label}${seatNumber}`
+                          : "Toggle seat / aisle";
                       return (
                         <button
                           type="button"
                           key={`${row.id}-${seat.id}`}
                           onClick={() => toggleSeat(rowIndex, columnIndex)}
+                          disabled={isWalkwayCell}
                           className={cn(
-                          "flex h-8 w-full items-center justify-center rounded-md border text-[10px] font-semibold transition",
-                          row.isWalkway
-                            ? "border-dashed border-amber-200 bg-amber-50 text-amber-400"
-                            : isSeat
-                              ? "border-transparent text-white shadow"
-                              : "border-dashed border-slate-300 bg-slate-100 text-slate-400",
-                          isSelected && !row.isWalkway ? "ring-1 ring-indigo-300" : "",
-                        )}
-                        style={isSeat ? { backgroundColor: section?.color ?? "#475569" } : undefined}
-                        title={isSeat && seatNumber ? `${row.label}${seatNumber}` : "Toggle seat / aisle"}
-                      >
-                        {isSeat && seatNumber ? seatNumber : ""}
+                            "flex h-8 w-full items-center justify-center rounded-md border text-[10px] font-semibold transition",
+                            isWalkwayCell
+                              ? "border-dashed border-amber-200 bg-amber-50 text-amber-400"
+                              : isSeat
+                                ? "border-transparent text-white shadow"
+                                : "border-dashed border-slate-300 bg-slate-100 text-slate-400",
+                            isSelected && !row.isWalkway && !isColumnWalkway ? "ring-1 ring-indigo-300" : "",
+                          )}
+                          style={isSeat ? { backgroundColor: section?.color ?? "#475569" } : undefined}
+                          title={cellTitle}
+                        >
+                          {isSeat && seatNumber ? seatNumber : ""}
                         </button>
                       );
                     })}

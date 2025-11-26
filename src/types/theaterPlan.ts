@@ -22,6 +22,7 @@ export interface TheaterDesignerState {
   rows: TheaterRowState[];
   sections: TheaterPlanSection[];
   columnCount: number;
+  walkwayColumns: number[];
 }
 
 export interface TheaterSeatDefinition {
@@ -54,6 +55,7 @@ export interface TheaterPlanSummary {
   columns: number;
   sections: TheaterPlanSection[];
   capacity: number;
+  walkwayColumns: number[];
 }
 
 export interface TheaterLayoutConfiguration {

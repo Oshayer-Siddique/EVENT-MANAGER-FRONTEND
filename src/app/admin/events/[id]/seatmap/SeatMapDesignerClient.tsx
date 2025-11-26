@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   getEventSeatMap,
@@ -34,6 +34,11 @@ const TIER_COLORS = [
   "#14B8A6",
   "#FACC15",
 ];
+
+const WALKWAY_PATTERN: CSSProperties = {
+  backgroundImage:
+    "repeating-linear-gradient(135deg, rgba(251,191,36,0.85) 0 8px, rgba(254,240,199,0.85) 8px 16px)",
+};
 
 interface SeatMapPageProps {
   params: { id: string };
@@ -120,6 +125,11 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
     );
   }, [seatMap]);
 
+  const tierPriceMap = useMemo(() => {
+    if (!seatMap) return new Map<string, number>();
+    return new Map(seatMap.ticketTiers.map(tier => [tier.tierCode, tier.price]));
+  }, [seatMap]);
+
   const seatsByRow = useMemo(() => {
     if (!seatMap) return [] as Array<[string, EventSeatMapSeat[]]>;
     const groups = new Map<string, EventSeatMapSeat[]>();
@@ -144,6 +154,19 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
       .sort(([rowA], [rowB]) => rowA.localeCompare(rowB, undefined, { sensitivity: "base", numeric: true }));
   }, [seatMap]);
 
+  const seatGroupMap = useMemo(() => new Map(seatsByRow), [seatsByRow]);
+
+  const seatByLabel = useMemo(() => {
+    const map = new Map<string, EventSeatMapSeat>();
+    seatMap?.seats.forEach(seat => {
+      const key = seat.label ?? (seat.row ? `${seat.row}${seat.number ?? ""}` : seat.seatId);
+      if (key) {
+        map.set(key, seat);
+      }
+    });
+    return map;
+  }, [seatMap]);
+
   const tierCounts = useMemo(() => {
     if (!seatMap) return new Map<string, number>();
     const counts = new Map<string, number>();
@@ -160,6 +183,59 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
     }
     return layoutDetail.configuration.summary;
   }, [layoutDetail]);
+
+  type LayoutRowCell =
+    | { kind: 'seat'; columnIndex: number; seat: EventSeatMapSeat | null; price?: number }
+    | { kind: 'walkway'; columnIndex: number }
+    | { kind: 'empty'; columnIndex: number };
+
+  type LayoutRowDefinition =
+    | { kind: 'walkway-row'; label: string }
+    | { kind: 'seat-row'; label: string; cells: LayoutRowCell[] };
+
+  const layoutRows: LayoutRowDefinition[] | null = useMemo(() => {
+    if (!theaterPlan) {
+      return null;
+    }
+
+    const walkwayColumns = new Set(theaterPlan.walkwayColumns ?? []);
+    const rowSeatDefs = new Map<string, Map<number, TheaterPlanSummary['seats'][number]>>();
+    theaterPlan.seats.forEach(def => {
+      if (!rowSeatDefs.has(def.rowLabel)) {
+        rowSeatDefs.set(def.rowLabel, new Map());
+      }
+      rowSeatDefs.get(def.rowLabel)!.set(def.columnIndex, def);
+    });
+
+    return theaterPlan.rows.map(row => {
+      if (row.isWalkway) {
+        return { kind: 'walkway-row', label: row.rowLabel } as LayoutRowDefinition;
+      }
+
+      const columnMap = rowSeatDefs.get(row.rowLabel) ?? new Map();
+      const cells: LayoutRowCell[] = [];
+      for (let columnIndex = 0; columnIndex < theaterPlan.columns; columnIndex += 1) {
+        if (walkwayColumns.has(columnIndex)) {
+          cells.push({ kind: 'walkway', columnIndex });
+          continue;
+        }
+
+        const seatDef = columnMap.get(columnIndex);
+        if (!seatDef) {
+          cells.push({ kind: 'empty', columnIndex });
+          continue;
+        }
+
+        const key = seatDef.label ?? `${seatDef.rowLabel}${seatDef.seatNumber}`;
+        const match = key ? seatByLabel.get(key) ?? null : null;
+        const resolvedPrice = match?.price ?? (match?.tierCode ? tierPriceMap.get(match.tierCode) : undefined);
+
+        cells.push({ kind: 'seat', columnIndex, seat: match, price: resolvedPrice });
+      }
+
+      return { kind: 'seat-row', label: row.rowLabel, cells } as LayoutRowDefinition;
+    });
+  }, [theaterPlan, seatByLabel, tierPriceMap]);
 
   const selectableStatuses = useMemo(() => new Set<EventSeatStatus>([EventSeatStatus.AVAILABLE, EventSeatStatus.BLOCKED]), []);
   const selectedCount = selectedSeatIds.size;
@@ -327,29 +403,6 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
         </div>
       </div>
 
-      {theaterPlan && (
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-blue-500">Layout reference</p>
-              <h2 className="text-lg font-semibold text-slate-900">Exact seating layout</h2>
-              <p className="text-sm text-slate-500">Amber bands indicate walkways exactly as designed in the layout builder.</p>
-            </div>
-            {loadingLayout && <span className="text-xs text-slate-500">Updating preview…</span>}
-          </div>
-          {layoutPreviewError && <p className="mt-2 text-xs text-rose-500">{layoutPreviewError}</p>}
-          <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
-            <LayoutPreview
-              typeName={seatMap.layout.typeName}
-              totalRows={layoutDetail?.totalRows ?? seatMap.layout.totalRows}
-              totalCols={layoutDetail?.totalCols ?? seatMap.layout.totalCols}
-              theaterPlan={theaterPlan}
-              configuration={layoutDetail?.configuration ?? null}
-            />
-          </div>
-        </section>
-      )}
-
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1 space-y-6">
           <TierPalette
@@ -362,7 +415,7 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
             }}
           />
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
             <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Seat layout</h2>
@@ -373,61 +426,172 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
               <SeatStatusLegend />
             </header>
 
-            <div className="space-y-6">
-              {seatsByRow.length === 0 ? (
+            <div className="mx-auto max-w-5xl space-y-4">
+              {(layoutRows ?? seatsByRow).length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
                   This layout has no seats yet. Add seats to the layout before assigning tiers.
                 </div>
               ) : (
-                seatsByRow.map(([row, seats]) => (
-                  <div key={row} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-600">Row {row}</h3>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                        onClick={() => {
-                          setSelectedSeatIds(prev => {
-                            const next = new Set(prev);
-                            const allSelected = seats
-                              .filter(seat => selectableStatuses.has(seat.status))
-                              .every(seat => next.has(seat.seatId));
-                            seats.forEach(seat => {
-                              if (!selectableStatuses.has(seat.status)) {
-                                return;
-                              }
-                              if (allSelected) {
-                                next.delete(seat.seatId);
-                              } else {
-                                next.add(seat.seatId);
-                              }
-                            });
-                            return next;
-                          });
-                        }}
-                      >
-                        <Paintbrush className="h-3 w-3" /> {seats.every(seat => selectedSeatIds.has(seat.seatId)) ? "Deselect row" : "Select row"}
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <div className="flex min-w-max gap-2 pb-1">
-                        {seats.map(seat => {
-                          const isSelected = selectedSeatIds.has(seat.seatId);
-                          const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
-                          return (
-                            <SeatButton
-                              key={seat.seatId}
-                              seat={seat}
-                              color={color}
-                              selected={isSelected}
-                              onClick={() => toggleSeatSelection(seat)}
-                            />
-                          );
-                        })}
+                (layoutRows
+                  ? layoutRows.map(row => {
+                      if (row.kind === 'walkway-row') {
+                        return (
+                          <div
+                            key={`walkway-${row.label}`}
+                            className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-amber-700 shadow-inner"
+                            style={WALKWAY_PATTERN}
+                          >
+                            {row.label || 'Walkway'}
+                          </div>
+                        );
+                      }
+
+                      const seatsForRow = seatGroupMap.get(row.label) ?? [];
+                      const rowHasSelectableSeats = seatsForRow.some(seat => selectableStatuses.has(seat.status));
+
+                      return (
+                        <div
+                          key={`row-${row.label}`}
+                          className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm"
+                        >
+                          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+                            <h3 className="text-base font-semibold text-slate-700">Row {row.label}</h3>
+                            {rowHasSelectableSeats && (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                                onClick={() => {
+                                  setSelectedSeatIds(prev => {
+                                    const next = new Set(prev);
+                                    const allSelected = seatsForRow
+                                      .filter(seat => selectableStatuses.has(seat.status))
+                                      .every(seat => next.has(seat.seatId));
+                                    seatsForRow.forEach(seat => {
+                                      if (!selectableStatuses.has(seat.status)) {
+                                        return;
+                                      }
+                                      if (allSelected) {
+                                        next.delete(seat.seatId);
+                                      } else {
+                                        next.add(seat.seatId);
+                                      }
+                                    });
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <Paintbrush className="h-3 w-3" />
+                                {seatsForRow.every(seat => selectedSeatIds.has(seat.seatId))
+                                  ? 'Deselect row'
+                                  : 'Select row'}
+                              </button>
+                            )}
+                          </div>
+                          <div className="w-full overflow-x-auto">
+                            <div className="flex min-w-full flex-wrap items-center justify-center gap-1.5 pb-1">
+                              {row.cells.map(cell => {
+                                if (cell.kind === 'walkway') {
+                                  return (
+                                    <div
+                                      key={`walkway-col-${row.label}-${cell.columnIndex}`}
+                                      className="h-11 w-11 rounded-xl border border-amber-200 shadow-inner"
+                                      style={WALKWAY_PATTERN}
+                                      aria-label="Walkway column"
+                                    />
+                                  );
+                                }
+
+                                if (cell.kind === 'empty') {
+                                  return (
+                                    <div
+                                      key={`empty-${row.label}-${cell.columnIndex}`}
+                                      className="h-11 w-11 rounded-xl border border-dashed border-slate-200 bg-slate-50"
+                                    />
+                                  );
+                                }
+
+                                if (!cell.seat) {
+                                  return (
+                                    <div
+                                      key={`missing-${row.label}-${cell.columnIndex}`}
+                                      className="flex h-11 w-11 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] font-medium text-slate-400"
+                                    >
+                                      Missing
+                                    </div>
+                                  );
+                                }
+
+                                const isSelected = selectedSeatIds.has(cell.seat.seatId);
+                                const color = cell.seat.tierCode ? tierColorMap.get(cell.seat.tierCode) : undefined;
+
+                                return (
+                                  <SeatButton
+                                    key={cell.seat.seatId}
+                                    seat={cell.seat}
+                                    color={color}
+                                    selected={isSelected}
+                                    price={cell.price}
+                                    onClick={() => toggleSeatSelection(cell.seat!)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  : seatsByRow.map(([row, seats]) => (
+                      <div key={row} className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm">
+                        <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+                          <h3 className="text-base font-semibold text-slate-700">Row {row}</h3>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                            onClick={() => {
+                              setSelectedSeatIds(prev => {
+                                const next = new Set(prev);
+                                const allSelected = seats
+                                  .filter(seat => selectableStatuses.has(seat.status))
+                                  .every(seat => next.has(seat.seatId));
+                                seats.forEach(seat => {
+                                  if (!selectableStatuses.has(seat.status)) {
+                                    return;
+                                  }
+                                  if (allSelected) {
+                                    next.delete(seat.seatId);
+                                  } else {
+                                    next.add(seat.seatId);
+                                  }
+                                });
+                                return next;
+                              });
+                            }}
+                          >
+                            <Paintbrush className="h-3 w-3" />
+                            {seats.every(seat => selectedSeatIds.has(seat.seatId)) ? 'Deselect row' : 'Select row'}
+                          </button>
+                        </div>
+                        <div className="w-full overflow-x-auto">
+                          <div className="flex min-w-full flex-wrap items-center justify-center gap-1.5 pb-1">
+                            {seats.map(seat => {
+                              const isSelected = selectedSeatIds.has(seat.seatId);
+                              const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
+                              const resolvedPrice = seat.price ?? (seat.tierCode ? tierPriceMap.get(seat.tierCode) ?? null : null);
+                              return (
+                                <SeatButton
+                                  key={seat.seatId}
+                                  seat={seat}
+                                  color={color}
+                                  selected={isSelected}
+                                  price={resolvedPrice ?? undefined}
+                                  onClick={() => toggleSeatSelection(seat)}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))
+                    )))
               )}
             </div>
           </section>
@@ -514,10 +678,11 @@ interface SeatButtonProps {
   seat: EventSeatMapSeat;
   color?: string;
   selected: boolean;
+  price?: number;
   onClick: () => void;
 }
 
-const SeatButton = ({ seat, color, selected, onClick }: SeatButtonProps) => {
+const SeatButton = ({ seat, color, selected, price, onClick }: SeatButtonProps) => {
   const disabled = seat.status === EventSeatStatus.SOLD || seat.status === EventSeatStatus.RESERVED;
   const displayLabel = seat.label || (seat.row ? `${seat.row}${seat.number ?? ""}` : seat.number?.toString() ?? "–");
 
@@ -557,7 +722,7 @@ const SeatButton = ({ seat, color, selected, onClick }: SeatButtonProps) => {
       disabled={disabled}
       title={`${displayLabel} · ${seat.tierCode ?? "Unassigned"} · ${seat.status}`}
       className={cn(
-        "flex h-12 w-12 flex-col items-center justify-center rounded-xl border text-xs font-semibold transition",
+        "flex h-11 w-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold transition",
         disabled ? "cursor-not-allowed opacity-70" : "hover:translate-y-[-1px] hover:shadow",
         statusStyles.className,
         statusStyles.text,
@@ -565,9 +730,9 @@ const SeatButton = ({ seat, color, selected, onClick }: SeatButtonProps) => {
       style={{ backgroundColor: disabled ? undefined : statusStyles.bg, borderColor: statusStyles.border }}
     >
       <span className="leading-tight">{displayLabel}</span>
-      {seat.price !== undefined && seat.price !== null && !Number.isNaN(seat.price) && (
-        <span className="text-[10px] font-medium text-slate-500">${Number(seat.price).toFixed(0)}</span>
-      )}
+      <span className="text-[9px] font-medium text-slate-600">
+        {price !== undefined ? `$${Number(price).toFixed(0)}` : "—"}
+      </span>
     </button>
   );
 };

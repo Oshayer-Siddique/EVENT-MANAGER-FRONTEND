@@ -403,7 +403,15 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold text-gray-700">Preview</h3>
               <div className="flex min-h-[240px] items-center justify-center">
-                <LayoutPreview {...formData} />
+                <LayoutPreview
+                  {...formData}
+                  theaterPlan={isTheaterLayout ? theaterPlan : undefined}
+                  configuration={
+                    isTheaterLayout
+                      ? { kind: 'theater', state: theaterState, summary: theaterPlan }
+                      : undefined
+                  }
+                />
               </div>
             </div>
           </div>

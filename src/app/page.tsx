@@ -997,7 +997,7 @@ export default function MelangeHomepage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
             <div>
-              <h3 className="text-lg font-bold mb-3">Melange</h3>
+              <h3 className="text-lg font-bold mb-3">Ticketify</h3>
               <p className="text-sm text-gray-400">
                 Your gateway to unforgettable experiences.
               </p>
@@ -1034,7 +1034,7 @@ export default function MelangeHomepage() {
             </div>
           </div>
           <div className="pt-6 border-t border-gray-800 text-center text-xs text-gray-400">
-            © {new Date().getFullYear()} Melange. All rights reserved.
+            © {new Date().getFullYear()} Ticketify. All rights reserved.
           </div>
         </div>
       </footer>

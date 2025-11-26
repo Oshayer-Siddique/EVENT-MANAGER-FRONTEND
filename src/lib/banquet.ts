@@ -37,6 +37,7 @@ export const banquetTablesToSeatPlan = (tables: BanquetTable[]): TheaterPlanSumm
     columns: seats.length,
     sections: [],
     capacity: seats.length,
+    walkwayColumns: [],
   };
 };
 

@@ -24,6 +24,11 @@ const Table = ({ chairs }: { chairs: number }) => (
   </div>
 );
 
+const walkwayStripeStyle: React.CSSProperties = {
+  backgroundImage:
+    'repeating-linear-gradient(135deg, rgba(251,191,36,0.9) 0 8px, rgba(253,230,138,0.7) 8px 16px)',
+};
+
 const LayoutPreview: React.FC<LayoutPreviewProps> = ({
   typeName,
   totalRows = 0,
@@ -49,6 +54,7 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
       });
 
       const columns = Math.max(1, planToUse.columns);
+      const walkwayColumns = new Set(planToUse.walkwayColumns ?? []);
 
       return (
         <div className="space-y-3 rounded-lg border-2 border-dashed bg-gray-100 p-3">
@@ -58,8 +64,7 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
             </div>
           </div>
           <div className="overflow-x-auto">
-            <div
-              className="inline-grid gap-1"
+            <div className="mx-auto inline-grid gap-1"
               style={{ gridTemplateColumns: `64px repeat(${columns}, minmax(24px, 32px))` }}
             >
               <div className="flex items-center justify-center text-[10px] font-semibold uppercase text-slate-500">
@@ -68,7 +73,12 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
               {Array.from({ length: columns }, (_, columnIndex) => (
                 <div
                   key={`preview-column-${columnIndex}`}
-                  className="flex h-8 items-center justify-center rounded bg-slate-200 text-[10px] font-semibold text-slate-600"
+                  className={`flex h-8 items-center justify-center rounded text-[10px] font-semibold ${
+                    walkwayColumns.has(columnIndex)
+                      ? 'border border-amber-300 text-amber-900'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                  style={walkwayColumns.has(columnIndex) ? walkwayStripeStyle : undefined}
                 >
                   {columnIndex + 1}
                 </div>
@@ -81,11 +91,12 @@ const LayoutPreview: React.FC<LayoutPreviewProps> = ({
                       {row.rowLabel}
                     </div>
                     {Array.from({ length: columns }, (_, columnIndex) => {
-                      if (row.isWalkway) {
+                      if (row.isWalkway || walkwayColumns.has(columnIndex)) {
                         return (
                           <div
                             key={`preview-walkway-${row.rowId}-${columnIndex}`}
-                            className="flex h-8 items-center justify-center rounded border border-dashed border-amber-300 bg-amber-50"
+                            className="flex h-8 items-center justify-center rounded border border-amber-300"
+                            style={walkwayStripeStyle}
                           />
                         );
                       }
