@@ -7,10 +7,20 @@ import type { EventSeatMapSeat } from "@/types/seatMap";
 import { EventSeatStatus } from "@/types/eventSeat";
 import { cn } from "@/lib/utils/utils";
 
-const sanitizeTableLabel = (value?: string | null) => (value ?? 'TABLE')
-  .trim()
-  .toUpperCase()
-  .replace(/[^A-Z0-9]/g, '') || 'TABLE';
+const sanitizeTableLabel = (value?: string | null) => {
+  const cleaned = (value ?? 'T')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) {
+    return 'T';
+  }
+  if (cleaned.startsWith('TABLE')) {
+    const suffix = cleaned.slice(5);
+    return `T${suffix || ''}`;
+  }
+  return cleaned;
+};
 
 interface BanquetAdminSeatMapProps {
   layout: BanquetLayout;
@@ -18,7 +28,6 @@ interface BanquetAdminSeatMapProps {
   selectedSeatIds: Set<string>;
   selectableStatuses: Set<EventSeatStatus>;
   tierColorMap: Map<string, string>;
-  tierPriceMap: Map<string, number>;
   onToggleSeat: (seat: EventSeatMapSeat) => void;
 }
 
@@ -28,7 +37,6 @@ const BanquetAdminSeatMap = ({
   selectedSeatIds,
   selectableStatuses,
   tierColorMap,
-  tierPriceMap,
   onToggleSeat,
 }: BanquetAdminSeatMapProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -60,27 +68,36 @@ const BanquetAdminSeatMap = ({
     return map;
   }, [seats]);
 
-  const tables = useMemo(() => layout.tables ?? [], [layout.tables]);
-
-  const tierLookup = useMemo(() => {
-    const lookup = new Map<string, { color: string; price?: number }>();
-    tierColorMap.forEach((color, tierCode) => lookup.set(tierCode, { color, price: tierPriceMap.get(tierCode) }));
-    return lookup;
-  }, [tierColorMap, tierPriceMap]);
+  const tableMetrics = useMemo(() => {
+    if (!layout.tables.length) {
+      return [] as Array<Required<BanquetLayout>["tables"][number]>;
+    }
+    return layout.tables.map(table => ({
+      id: table.id,
+      label: table.label,
+      tierCode: table.tierCode,
+      x: table.x ?? 0,
+      y: table.y ?? 0,
+      rotation: table.rotation ?? 0,
+      radius: table.radius ?? 60,
+      chairCount: table.chairCount ?? table.chairs?.length ?? 0,
+      chairs: table.chairs ?? [],
+    }));
+  }, [layout.tables]);
 
   const isCompact = canvasWidth < 640;
   const padding = isCompact ? 80 : 120;
   const bounds = useMemo(() => {
-    if (!tables.length) {
+    if (!tableMetrics.length) {
       return { minX: 0, maxX: canvasWidth, minY: 0, maxY: 520 };
     }
-    return tables.reduce(
+    return tableMetrics.reduce(
       (acc, table) => {
         const radius = table.radius ?? 60;
-        const minX = (table.x ?? 0) - radius;
-        const maxX = (table.x ?? 0) + radius;
-        const minY = (table.y ?? 0) - radius;
-        const maxY = (table.y ?? 0) + radius;
+        const minX = table.x - radius;
+        const maxX = table.x + radius;
+        const minY = table.y - radius;
+        const maxY = table.y + radius;
         return {
           minX: Math.min(acc.minX, minX),
           maxX: Math.max(acc.maxX, maxX),
@@ -90,16 +107,17 @@ const BanquetAdminSeatMap = ({
       },
       { minX: Number.POSITIVE_INFINITY, maxX: Number.NEGATIVE_INFINITY, minY: Number.POSITIVE_INFINITY, maxY: Number.NEGATIVE_INFINITY },
     );
-  }, [tables, canvasWidth]);
+  }, [tableMetrics, canvasWidth]);
 
   const viewWidth = Math.max(1, bounds.maxX - bounds.minX) + padding * 2;
   const viewHeight = Math.max(1, bounds.maxY - bounds.minY) + padding * 2;
-  const canvasHeight = viewHeight;
-  const scale = canvasWidth / Math.max(viewWidth, 1);
+  const derivedHeight = Math.max(420, Math.min(720, (viewHeight / viewWidth) * canvasWidth));
+  const canvasHeight = Number.isFinite(derivedHeight) ? derivedHeight : 520;
+  const scale = Math.min(canvasWidth / viewWidth, canvasHeight / viewHeight);
   const offsetX = (canvasWidth - viewWidth * scale) / 2 - (bounds.minX - padding) * scale;
   const offsetY = (canvasHeight - viewHeight * scale) / 2 - (bounds.minY - padding) * scale;
 
-  if (!tables.length) {
+  if (!tableMetrics.length) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
         Banquet tables have not been configured yet.
@@ -121,14 +139,14 @@ const BanquetAdminSeatMap = ({
       style={{ height: `${canvasHeight}px` }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle,_#e2e8f0_1px,_transparent_1px)] [background-size:20px_20px]" />
-      {tables.map(table => {
+      {tableMetrics.map(table => {
         const tableLabel = sanitizeTableLabel(table.label);
         const tableSeats = seatsByTable.get(tableLabel) ?? [];
-        const radius = table.radius ?? 60;
-        const scaledRadius = Math.max(32, radius * scale * (isCompact ? 0.8 : 1));
+        const radiusScaleAdjustment = isCompact ? 0.8 : 1;
+        const scaledRadius = Math.max(32, table.radius * scale * radiusScaleAdjustment);
         const diameter = scaledRadius * 2;
-        const tableX = offsetX + (table.x ?? 0) * scale;
-        const tableY = offsetY + (table.y ?? 0) * scale;
+        const tableX = offsetX + table.x * scale;
+        const tableY = offsetY + table.y * scale;
         return (
           <div
             key={table.id}
@@ -153,11 +171,14 @@ const BanquetAdminSeatMap = ({
               const isSelected = selectedSeatIds.has(seat.seatId);
               const baseColor = seat.tierCode ? tierColorMap.get(seat.tierCode) ?? '#94A3B8' : '#94A3B8';
               const overrides = (() => {
-                if (seat.status === EventSeatStatus.RESERVED) {
-                  return { bg: '#FDE68A', border: '#F59E0B', text: 'text-amber-800' };
+                if (seat.status === EventSeatStatus.AVAILABLE && isSelected) {
+                  return { bg: '#DBEAFE', border: '#2563EB', text: 'text-blue-900' };
                 }
-                if (seat.status === EventSeatStatus.SOLD || seat.status === EventSeatStatus.BLOCKED) {
-                  return { bg: '#FCA5A5', border: '#F87171', text: 'text-white' };
+                if (seat.status === EventSeatStatus.SOLD) {
+                  return { bg: '#FECACA', border: '#DC2626', text: 'text-red-800' };
+                }
+                if (seat.status === EventSeatStatus.RESERVED || seat.status === EventSeatStatus.BLOCKED) {
+                  return { bg: '#FEE2E2', border: '#F87171', text: 'text-red-700' };
                 }
                 return {
                   bg: withAlpha(baseColor, isSelected ? 0.9 : 0.75),
@@ -181,8 +202,8 @@ const BanquetAdminSeatMap = ({
                     overrides.text,
                   )}
                   style={{
-                    left: tableX + scaledRadius * chairOffsetX,
-                    top: tableY + scaledRadius * chairOffsetY,
+                    left: scaledRadius + scaledRadius * chairOffsetX,
+                    top: scaledRadius + scaledRadius * chairOffsetY,
                     width: `${seatSize}px`,
                     height: `${seatSize}px`,
                     backgroundColor: overrides.bg,

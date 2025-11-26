@@ -6,7 +6,10 @@ import {
   getEventSeatMap,
   updateSeatAssignments,
 } from "@/services/eventSeatService";
+import { getBanquetLayout } from "@/services/banquetLayoutService";
 import { getSeatLayoutById } from "@/services/venueService";
+import BanquetAdminSeatMap from "@/components/admin/BanquetAdminSeatMap";
+import type { BanquetLayout } from "@/types/banquet";
 import type { EventSeatMap, EventSeatMapSeat, SeatAssignmentPayload } from "@/types/seatMap";
 import { EventSeatStatus } from "@/types/eventSeat";
 import { cn } from "@/lib/utils/utils";
@@ -54,6 +57,9 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
   const [selectedSeatIds, setSelectedSeatIds] = useState<Set<string>>(new Set());
   const [activeTierCode, setActiveTierCode] = useState<string | null>(null);
   const [layoutDetail, setLayoutDetail] = useState<Layout | null>(null);
+  const [banquetLayout, setBanquetLayout] = useState<BanquetLayout | null>(null);
+  const [loadingBanquetPreview, setLoadingBanquetPreview] = useState(false);
+  const [banquetPreviewError, setBanquetPreviewError] = useState<string | null>(null);
 
   const loadSeatMap = useCallback(async (showSpinner = true) => {
     try {
@@ -183,6 +189,15 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
     | { kind: 'walkway-row'; label: string }
     | { kind: 'seat-row'; label: string; cells: LayoutRowCell[] };
 
+  const isBanquetLayout = useMemo(() => {
+    if (!seatMap?.layout) {
+      return false;
+    }
+    const normalizedName = seatMap.layout.typeName ? seatMap.layout.typeName.toLowerCase() : undefined;
+    const normalizedCode = seatMap.layout.typeCode ? seatMap.layout.typeCode.toLowerCase() : undefined;
+    return normalizedName === 'banquet' || normalizedCode === '230';
+  }, [seatMap?.layout]);
+
   const layoutRows: LayoutRowDefinition[] | null = useMemo(() => {
     if (!theaterPlan) {
       return null;
@@ -226,6 +241,42 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
       return { kind: 'seat-row', label: row.rowLabel, cells } as LayoutRowDefinition;
     });
   }, [theaterPlan, seatByLabel, tierPriceMap]);
+
+  useEffect(() => {
+    if (!isBanquetLayout || !seatMap?.seatLayoutId) {
+      setBanquetLayout(null);
+      setBanquetPreviewError(null);
+      setLoadingBanquetPreview(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadBanquetPreview = async () => {
+      try {
+        setLoadingBanquetPreview(true);
+        setBanquetPreviewError(null);
+        const layout = await getBanquetLayout(seatMap.seatLayoutId);
+        if (!cancelled) {
+          setBanquetLayout(layout);
+        }
+      } catch (err) {
+        console.error('Failed to load banquet layout preview', err);
+        if (!cancelled) {
+          setBanquetLayout(null);
+          setBanquetPreviewError('We could not load the banquet seating preview.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingBanquetPreview(false);
+        }
+      }
+    };
+
+    void loadBanquetPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBanquetLayout, seatMap?.seatLayoutId]);
 
   const selectableStatuses = useMemo(() => new Set<EventSeatStatus>([EventSeatStatus.AVAILABLE, EventSeatStatus.BLOCKED]), []);
   const selectedCount = selectedSeatIds.size;
@@ -405,186 +456,225 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
             }}
           />
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
-            <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-800">Seat layout</h2>
-                <p className="text-sm text-slate-500">
-                  {seatMap.layout.totalCapacity} total capacity · {seatMap.seats.length} seats mapped
-                </p>
-              </div>
-              <SeatStatusLegend />
-            </header>
-
-            <div className="mx-auto max-w-5xl space-y-4">
-              {(layoutRows ?? seatsByRow).length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                  This layout has no seats yet. Add seats to the layout before assigning tiers.
+          {isBanquetLayout && (
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">Banquet preview</h2>
+                  <p className="text-sm text-slate-500">This mirrors the exact seating view guests see on the booking page.</p>
                 </div>
+                {loadingBanquetPreview && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+              </div>
+
+              {banquetPreviewError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">
+                  {banquetPreviewError}
+                </div>
+              )}
+
+              {loadingBanquetPreview ? (
+                <div className="flex h-56 items-center justify-center text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : banquetLayout ? (
+                <BanquetAdminSeatMap
+                  layout={banquetLayout}
+                  seats={seatMap.seats}
+                  selectedSeatIds={selectedSeatIds}
+                  selectableStatuses={selectableStatuses}
+                  tierColorMap={tierColorMap}
+                  onToggleSeat={toggleSeatSelection}
+                />
               ) : (
-                (layoutRows
-                  ? layoutRows.map(row => {
-                      if (row.kind === 'walkway-row') {
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  Configure tables in the banquet layout builder to preview them here.
+                </div>
+              )}
+            </section>
+          )}
+
+          {!isBanquetLayout && (
+            <section className="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm">
+              <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">Seat layout</h2>
+                  <p className="text-sm text-slate-500">
+                    {seatMap.layout.totalCapacity} total capacity · {seatMap.seats.length} seats mapped
+                  </p>
+                </div>
+                <SeatStatusLegend />
+              </header>
+
+              <div className="mx-auto max-w-5xl space-y-4">
+                {(layoutRows ?? seatsByRow).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                    This layout has no seats yet. Add seats to the layout before assigning tiers.
+                  </div>
+                ) : (
+                  (layoutRows
+                    ? layoutRows.map(row => {
+                        if (row.kind === 'walkway-row') {
+                          return (
+                            <div
+                              key={`walkway-${row.label}`}
+                              className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-amber-700 shadow-inner"
+                              style={WALKWAY_PATTERN}
+                            >
+                              {row.label || 'Walkway'}
+                            </div>
+                          );
+                        }
+
+                        const seatsForRow = seatGroupMap.get(row.label) ?? [];
+                        const rowHasSelectableSeats = seatsForRow.some(seat => selectableStatuses.has(seat.status));
+
                         return (
                           <div
-                            key={`walkway-${row.label}`}
-                            className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-amber-700 shadow-inner"
-                            style={WALKWAY_PATTERN}
+                            key={`row-${row.label}`}
+                            className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm"
                           >
-                            {row.label || 'Walkway'}
+                            <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+                              <h3 className="text-base font-semibold text-slate-700">Row {row.label}</h3>
+                              {rowHasSelectableSeats && (
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                                  onClick={() => {
+                                    setSelectedSeatIds(prev => {
+                                      const next = new Set(prev);
+                                      const allSelected = seatsForRow
+                                        .filter(seat => selectableStatuses.has(seat.status))
+                                        .every(seat => next.has(seat.seatId));
+                                      seatsForRow.forEach(seat => {
+                                        if (!selectableStatuses.has(seat.status)) {
+                                          return;
+                                        }
+                                        if (allSelected) {
+                                          next.delete(seat.seatId);
+                                        } else {
+                                          next.add(seat.seatId);
+                                        }
+                                      });
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <Paintbrush className="h-3 w-3" />
+                                  {seatsForRow.every(seat => selectedSeatIds.has(seat.seatId))
+                                    ? 'Deselect row'
+                                    : 'Select row'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="w-full overflow-x-auto">
+                              <div className="flex min-w-full flex-wrap items-center justify-center gap-1.5 pb-1">
+                                {row.cells.map(cell => {
+                                  if (cell.kind === 'walkway') {
+                                    return (
+                                      <div
+                                        key={`walkway-col-${row.label}-${cell.columnIndex}`}
+                                        className="h-11 w-11 rounded-xl border border-amber-200 shadow-inner"
+                                        style={WALKWAY_PATTERN}
+                                        aria-label="Walkway column"
+                                      />
+                                    );
+                                  }
+
+                                  if (cell.kind === 'empty') {
+                                    return (
+                                      <div
+                                        key={`empty-${row.label}-${cell.columnIndex}`}
+                                        className="h-11 w-11 rounded-xl border border-dashed border-slate-200 bg-slate-50"
+                                      />
+                                    );
+                                  }
+
+                                  if (!cell.seat) {
+                                    return (
+                                      <div
+                                        key={`missing-${row.label}-${cell.columnIndex}`}
+                                        className="flex h-11 w-11 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] font-medium text-slate-400"
+                                      >
+                                        Missing
+                                      </div>
+                                    );
+                                  }
+
+                                  const isSelected = selectedSeatIds.has(cell.seat.seatId);
+                                  const color = cell.seat.tierCode ? tierColorMap.get(cell.seat.tierCode) : undefined;
+
+                                  return (
+                                    <SeatButton
+                                      key={cell.seat.seatId}
+                                      seat={cell.seat}
+                                      color={color}
+                                      selected={isSelected}
+                                      price={cell.price}
+                                      onClick={() => toggleSeatSelection(cell.seat!)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
                         );
-                      }
-
-                      const seatsForRow = seatGroupMap.get(row.label) ?? [];
-                      const rowHasSelectableSeats = seatsForRow.some(seat => selectableStatuses.has(seat.status));
-
-                      return (
-                        <div
-                          key={`row-${row.label}`}
-                          className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm"
-                        >
+                      })
+                    : seatsByRow.map(([row, seats]) => (
+                        <div key={row} className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm">
                           <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-                            <h3 className="text-base font-semibold text-slate-700">Row {row.label}</h3>
-                            {rowHasSelectableSeats && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                                onClick={() => {
-                                  setSelectedSeatIds(prev => {
-                                    const next = new Set(prev);
-                                    const allSelected = seatsForRow
-                                      .filter(seat => selectableStatuses.has(seat.status))
-                                      .every(seat => next.has(seat.seatId));
-                                    seatsForRow.forEach(seat => {
-                                      if (!selectableStatuses.has(seat.status)) {
-                                        return;
-                                      }
-                                      if (allSelected) {
-                                        next.delete(seat.seatId);
-                                      } else {
-                                        next.add(seat.seatId);
-                                      }
-                                    });
-                                    return next;
+                            <h3 className="text-base font-semibold text-slate-700">Row {row}</h3>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                              onClick={() => {
+                                setSelectedSeatIds(prev => {
+                                  const next = new Set(prev);
+                                  const allSelected = seats
+                                    .filter(seat => selectableStatuses.has(seat.status))
+                                    .every(seat => next.has(seat.seatId));
+                                  seats.forEach(seat => {
+                                    if (!selectableStatuses.has(seat.status)) {
+                                      return;
+                                    }
+                                    if (allSelected) {
+                                      next.delete(seat.seatId);
+                                    } else {
+                                      next.add(seat.seatId);
+                                    }
                                   });
-                                }}
-                              >
-                                <Paintbrush className="h-3 w-3" />
-                                {seatsForRow.every(seat => selectedSeatIds.has(seat.seatId))
-                                  ? 'Deselect row'
-                                  : 'Select row'}
-                              </button>
-                            )}
+                                  return next;
+                                });
+                              }}
+                            >
+                              <Paintbrush className="h-3 w-3" />
+                              {seats.every(seat => selectedSeatIds.has(seat.seatId)) ? 'Deselect row' : 'Select row'}
+                            </button>
                           </div>
                           <div className="w-full overflow-x-auto">
                             <div className="flex min-w-full flex-wrap items-center justify-center gap-1.5 pb-1">
-                              {row.cells.map(cell => {
-                                if (cell.kind === 'walkway') {
-                                  return (
-                                    <div
-                                      key={`walkway-col-${row.label}-${cell.columnIndex}`}
-                                      className="h-11 w-11 rounded-xl border border-amber-200 shadow-inner"
-                                      style={WALKWAY_PATTERN}
-                                      aria-label="Walkway column"
-                                    />
-                                  );
-                                }
-
-                                if (cell.kind === 'empty') {
-                                  return (
-                                    <div
-                                      key={`empty-${row.label}-${cell.columnIndex}`}
-                                      className="h-11 w-11 rounded-xl border border-dashed border-slate-200 bg-slate-50"
-                                    />
-                                  );
-                                }
-
-                                if (!cell.seat) {
-                                  return (
-                                    <div
-                                      key={`missing-${row.label}-${cell.columnIndex}`}
-                                      className="flex h-11 w-11 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] font-medium text-slate-400"
-                                    >
-                                      Missing
-                                    </div>
-                                  );
-                                }
-
-                                const isSelected = selectedSeatIds.has(cell.seat.seatId);
-                                const color = cell.seat.tierCode ? tierColorMap.get(cell.seat.tierCode) : undefined;
-
+                              {seats.map(seat => {
+                                const isSelected = selectedSeatIds.has(seat.seatId);
+                                const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
+                                const resolvedPrice = seat.price ?? (seat.tierCode ? tierPriceMap.get(seat.tierCode) ?? null : null);
                                 return (
                                   <SeatButton
-                                    key={cell.seat.seatId}
-                                    seat={cell.seat}
+                                    key={seat.seatId}
+                                    seat={seat}
                                     color={color}
                                     selected={isSelected}
-                                    price={cell.price}
-                                    onClick={() => toggleSeatSelection(cell.seat!)}
+                                    price={resolvedPrice ?? undefined}
+                                    onClick={() => toggleSeatSelection(seat)}
                                   />
                                 );
                               })}
                             </div>
                           </div>
                         </div>
-                      );
-                    })
-                  : seatsByRow.map(([row, seats]) => (
-                      <div key={row} className="space-y-2 rounded-2xl border border-slate-100 bg-white/90 p-3 shadow-sm">
-                        <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-                          <h3 className="text-base font-semibold text-slate-700">Row {row}</h3>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                            onClick={() => {
-                              setSelectedSeatIds(prev => {
-                                const next = new Set(prev);
-                                const allSelected = seats
-                                  .filter(seat => selectableStatuses.has(seat.status))
-                                  .every(seat => next.has(seat.seatId));
-                                seats.forEach(seat => {
-                                  if (!selectableStatuses.has(seat.status)) {
-                                    return;
-                                  }
-                                  if (allSelected) {
-                                    next.delete(seat.seatId);
-                                  } else {
-                                    next.add(seat.seatId);
-                                  }
-                                });
-                                return next;
-                              });
-                            }}
-                          >
-                            <Paintbrush className="h-3 w-3" />
-                            {seats.every(seat => selectedSeatIds.has(seat.seatId)) ? 'Deselect row' : 'Select row'}
-                          </button>
-                        </div>
-                        <div className="w-full overflow-x-auto">
-                          <div className="flex min-w-full flex-wrap items-center justify-center gap-1.5 pb-1">
-                            {seats.map(seat => {
-                              const isSelected = selectedSeatIds.has(seat.seatId);
-                              const color = seat.tierCode ? tierColorMap.get(seat.tierCode) : undefined;
-                              const resolvedPrice = seat.price ?? (seat.tierCode ? tierPriceMap.get(seat.tierCode) ?? null : null);
-                              return (
-                                <SeatButton
-                                  key={seat.seatId}
-                                  seat={seat}
-                                  color={color}
-                                  selected={isSelected}
-                                  price={resolvedPrice ?? undefined}
-                                  onClick={() => toggleSeatSelection(seat)}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )))
-              )}
-            </div>
-          </section>
+                      )))
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
         <aside className="w-full space-y-6 lg:w-80">

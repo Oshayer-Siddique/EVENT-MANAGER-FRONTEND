@@ -27,10 +27,20 @@ interface BanquetSeatMapProps {
   tiers: EventTicketTier[];
 }
 
-const sanitizeLabel = (value?: string | null) => (value ?? 'TABLE')
-  .trim()
-  .toUpperCase()
-  .replace(/[^A-Z0-9]/g, '') || 'TABLE';
+const sanitizeLabel = (value?: string | null) => {
+  const cleaned = (value ?? 'T')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) {
+    return 'T';
+  }
+  if (cleaned.startsWith('TABLE')) {
+    const suffix = cleaned.slice(5);
+    return `T${suffix || ''}`;
+  }
+  return cleaned;
+};
 
 const statusStyles: Record<EventSeatStatus, { className: string }> = {
   AVAILABLE: { className: '' },
@@ -214,37 +224,41 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
                 }
                 const isSelected = selectedSeats.some(selected => selected.eventSeatId === seat.eventSeatId);
                 const tierColor = seat.tierCode ? tierColorMap.get(seat.tierCode) ?? '#94A3B8' : '#94A3B8';
-                const colorOverrides = (() => {
-                  if (seat.status === EventSeatStatus.SOLD) {
-                    return { bg: '#FECACA', border: '#DC2626' };
-                  }
-                  if (seat.status === EventSeatStatus.RESERVED || seat.status === EventSeatStatus.BLOCKED) {
-                    return { bg: '#FEE2E2', border: '#F87171' };
-                  }
-                  return { bg: withAlpha(tierColor, 0.2), border: tierColor };
-                })();
-                const seatBg = colorOverrides.bg;
-                const borderColor = colorOverrides.border;
-                const statusClass = statusStyles[seat.status]?.className;
-                const tier = seat.tierCode ? tierLookup.get(seat.tierCode) : undefined;
-                const center = scaledRadius;
-                const seatSize = Math.max(isCompact ? 12 : 16, Math.min(28, scaledRadius * 0.4));
-                return (
-                  <button
-                    key={chair.id}
-                    type="button"
-                    className={cn(
-                      'absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 rounded-full border text-[9px] font-semibold',
-                      seat.status === EventSeatStatus.AVAILABLE
-                        ? 'hover:scale-105 focus:outline-none focus:ring-2 focus:ring-slate-400'
-                        : 'focus:outline-none',
-                      statusClass,
-                      isSelected && seat.status === EventSeatStatus.AVAILABLE ? 'ring-2 ring-[#2F5F7F]' : '',
-                    )}
-                    style={{
-                      left: center + (scaledRadius * (chair.offsetX ?? 0)),
-                      top: center + (scaledRadius * (chair.offsetY ?? 0)),
-                      backgroundColor: seatBg,
+              const colorOverrides = (() => {
+                if (seat.status === EventSeatStatus.AVAILABLE && isSelected) {
+                  return { bg: '#DBEAFE', border: '#2563EB', text: 'text-blue-900' };
+                }
+                if (seat.status === EventSeatStatus.SOLD) {
+                  return { bg: '#FECACA', border: '#DC2626', text: 'text-white' };
+                }
+                if (seat.status === EventSeatStatus.RESERVED || seat.status === EventSeatStatus.BLOCKED) {
+                  return { bg: '#FEE2E2', border: '#F87171', text: 'text-rose-800' };
+                }
+                return { bg: withAlpha(tierColor, 0.2), border: tierColor, text: 'text-white' };
+              })();
+              const seatBg = colorOverrides.bg;
+              const borderColor = colorOverrides.border;
+              const statusClass = statusStyles[seat.status]?.className;
+              const tier = seat.tierCode ? tierLookup.get(seat.tierCode) : undefined;
+              const center = scaledRadius;
+              const seatSize = Math.max(isCompact ? 12 : 16, Math.min(28, scaledRadius * 0.4));
+              return (
+                <button
+                  key={chair.id}
+                  type="button"
+                  className={cn(
+                    'absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 rounded-full border text-[9px] font-semibold',
+                    seat.status === EventSeatStatus.AVAILABLE
+                      ? 'hover:scale-105 focus:outline-none focus:ring-2 focus:ring-slate-400'
+                      : 'focus:outline-none',
+                    statusClass,
+                    isSelected && seat.status === EventSeatStatus.AVAILABLE ? 'ring-2 ring-[#2563EB]' : '',
+                    colorOverrides.text,
+                  )}
+                  style={{
+                    left: center + (scaledRadius * (chair.offsetX ?? 0)),
+                    top: center + (scaledRadius * (chair.offsetY ?? 0)),
+                    backgroundColor: seatBg,
                       borderColor,
                       width: `${seatSize}px`,
                       height: `${seatSize}px`,
