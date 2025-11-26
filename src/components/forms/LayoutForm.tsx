@@ -30,11 +30,12 @@ interface LayoutFormProps {
 
 const layoutTypes = [
   { name: "Theater", code: "200" },
+
   { name: "Banquet", code: "230" },
   { name: "Freestyle", code: "220" },
 ];
 
-const theaterLikeTypes = new Set(["Theater", "Seminar", "Conference Hall"]);
+const theaterLikeTypes = new Set(["Theater"]);
 
 const InputField = ({
   label,
