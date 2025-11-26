@@ -56,9 +56,6 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
     phone: "",
     typeCode: venueTypes[0].code,
     typeName: venueTypes[0].name,
-    totalEvents: 0,
-    liveEvents: 0,
-    eventsUpcoming: 0,
     maxCapacity: "",
     mapAddress: "",
     socialMediaLink: "",
@@ -76,9 +73,6 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
         phone: initialData.phone || "",
         typeCode: initialData.typeCode || venueTypes[0].code,
         typeName: initialData.typeName || venueTypes[0].name,
-        totalEvents: initialData.totalEvents || 0,
-        liveEvents: initialData.liveEvents || 0,
-        eventsUpcoming: initialData.eventsUpcoming || 0,
         maxCapacity: initialData.maxCapacity || "",
         mapAddress: initialData.mapAddress || "",
         socialMediaLink: initialData.socialMediaLink || "",
@@ -106,7 +100,13 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+    const preparedData = {
+      ...formData,
+      totalEvents: initialData ? (initialData.totalEvents || 0) : 0,
+      liveEvents: initialData ? (initialData.liveEvents || 0) : 0,
+      eventsUpcoming: initialData ? (initialData.eventsUpcoming || 0) : 0,
+    } satisfies Omit<Venue, "id">;
+    await onSubmit(preparedData);
   };
 
   return (
@@ -139,9 +139,13 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
             <InputField label="Google Maps Link" name="mapAddress" value={formData.mapAddress || ''} onChange={handleChange} placeholder="Enter google maps link" />
             <InputField label="Website Link" name="websiteLink" value={formData.websiteLink || ''} onChange={handleChange} placeholder="Enter website link" />
             <InputField label="Social Media Link" name="socialMediaLink" value={formData.socialMediaLink || ''} onChange={handleChange} placeholder="Enter a social media link" />
-            <InputField label="Total Events" name="totalEvents" value={formData.totalEvents || 0} onChange={handleChange} type="number" />
-            <InputField label="Live Events" name="liveEvents" value={formData.liveEvents || 0} onChange={handleChange} type="number" />
-            <InputField label="Upcoming Events" name="eventsUpcoming" value={formData.eventsUpcoming || 0} onChange={handleChange} type="number" />
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-2">
+              <p className="font-semibold text-slate-800">Event stats</p>
+              <p>Past events: 0</p>
+              <p>Live events: 0</p>
+              <p>Upcoming events: 0</p>
+              <p className="text-xs text-slate-500">These fields auto-update based on activity and are not edited here.</p>
+            </div>
         </div>
       </div>
 

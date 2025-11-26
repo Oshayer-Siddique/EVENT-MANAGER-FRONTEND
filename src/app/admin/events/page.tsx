@@ -201,10 +201,10 @@ const EventsPage = () => {
             <tbody className="divide-y divide-gray-200">
               {filteredEvents?.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-bold text-gray-900">{event.eventName}</div>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold text-gray-900 break-words leading-5">{event.eventName}</div>
                     <div className="text-xs text-gray-500">{event.typeName}</div>
-                  </td>
+                 </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-bold text-gray-900">{event.venueName}</div>
                     <div className="text-xs text-gray-500">{event.venueAddress}</div>

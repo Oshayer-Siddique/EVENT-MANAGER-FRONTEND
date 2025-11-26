@@ -3,7 +3,19 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getVenues, deleteVenue } from "@/services/venueService";
 import { Venue } from "@/types/venue";
-import { PlusCircle, Edit, Trash2, Eye, Search, Mail, Phone, Building2, Users, Sparkles, MapPin } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Eye, Search, Mail, Phone, Building2, Users, Sparkles, MapPin, User } from "lucide-react";
+
+const CAPACITY_FORMATTER = new Intl.NumberFormat('en-US');
+const formatCapacity = (value?: string | number | null) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (Number.isNaN(numeric)) {
+    return null;
+  }
+  return CAPACITY_FORMATTER.format(numeric);
+};
 
 const VenuePage = () => {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -125,14 +137,16 @@ const VenuePage = () => {
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Address</th>
               <th className="px-6 py-4 text-left text-sm font-bold text-blue-600 uppercase tracking-wider">Contact</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Capacity</th>
-              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Total Events</th>
+              <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Past Events</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Live</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Upcoming</th>
               <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {filteredVenues.map((venue) => (
+            {filteredVenues.map((venue) => {
+              const formattedCapacity = formatCapacity(venue.maxCapacity);
+              return (
               <tr key={venue.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">{venue.venueName}</div>
@@ -152,7 +166,16 @@ const VenuePage = () => {
                     <Phone size={14} className="mr-2 text-gray-400 flex-shrink-0"/> {venue.phone || '—'}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-medium">{venue.maxCapacity || 'N/A'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-medium">
+                  {formattedCapacity ? (
+                    <span className="inline-flex items-center justify-center gap-1 text-slate-700">
+                      {formattedCapacity}
+                      <User className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                    </span>
+                  ) : (
+                    'N/A'
+                  )}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.totalEvents}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.liveEvents}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{venue.eventsUpcoming}</td>
@@ -162,7 +185,7 @@ const VenuePage = () => {
                   <button onClick={() => handleDelete(venue.id)} className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 transition" title="Delete"><Trash2 size={18} /></button>
                 </td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
         {filteredVenues.length === 0 && (
