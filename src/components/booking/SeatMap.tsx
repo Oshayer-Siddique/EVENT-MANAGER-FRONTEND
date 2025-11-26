@@ -451,19 +451,28 @@ interface SeatTileProps {
 
 const SeatTile = ({ seat, selected, color, price, matchesTier, onSelect }: SeatTileProps) => {
   const available = seat.status === EventSeatStatus.AVAILABLE;
-  const reserved = seat.status === EventSeatStatus.RESERVED;
+  const reserved = seat.status === EventSeatStatus.RESERVED || seat.status === EventSeatStatus.BLOCKED;
+  const sold = seat.status === EventSeatStatus.SOLD;
   const interactable = available && (matchesTier || selected);
   const label =
     seat.label ?? (seat.row && seat.number !== undefined ? `${seat.row}${seat.number}` : seat.row ?? String(seat.number ?? 'Seat'));
-  const backgroundColor = reserved
-    ? '#fcd34d'
-    : color
-      ? withAlpha(color, selected ? 0.9 : 0.75)
-      : selected
-        ? '#2563eb'
-        : '#cbd5f5';
-  const borderColor = reserved ? '#f97316' : color ? withAlpha(color, 1) : '#94a3b8';
-  const textColor = reserved || color ? 'text-white' : 'text-slate-700';
+  const palette = {
+    bg: color ? withAlpha(color, selected ? 0.9 : 0.75) : selected ? '#2563eb' : '#cbd5f5',
+    border: color ? withAlpha(color, 1) : '#94a3b8',
+    text: color ? 'text-white' : 'text-slate-700',
+  };
+  const statusOverride = (() => {
+    if (sold) {
+      return { bg: '#fecaca', border: '#dc2626', text: 'text-red-800' };
+    }
+    if (reserved) {
+      return { bg: '#fee2e2', border: '#f87171', text: 'text-red-700' };
+    }
+    return null;
+  })();
+  const backgroundColor = statusOverride?.bg ?? palette.bg;
+  const borderColor = statusOverride?.border ?? palette.border;
+  const textColor = statusOverride?.text ?? palette.text;
 
   return (
     <button
@@ -522,9 +531,9 @@ const SeatLegend = () => (
   <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600">
     <LegendItem color="bg-green-100 border-green-500" label="Available" />
     <LegendItem color="bg-blue-100 border-blue-500" label="Selected" />
-    <LegendItem color="bg-yellow-100 border-yellow-500" label="Reserved" />
-    <LegendItem color="bg-rose-100 border-rose-500" label="Pre-reserved" />
-    <LegendItem color="bg-red-100 border-red-500" label="Sold" />
+    <LegendItem color="bg-red-50 border-red-400" label="Reserved" />
+    <LegendItem color="bg-red-100 border-red-500" label="Pre-reserved" />
+    <LegendItem color="bg-red-200 border-red-600" label="Sold" />
   </div>
 );
 
@@ -547,11 +556,11 @@ const buildSeatClasses = (status: EventSeatStatus, isSelected: boolean) => {
     case EventSeatStatus.AVAILABLE:
       return `${base} border-green-400 hover:-translate-y-0.5 hover:border-green-600 hover:shadow`;
     case EventSeatStatus.RESERVED:
-      return `${base} cursor-not-allowed border-yellow-400 bg-yellow-50 text-yellow-700`;
+      return `${base} cursor-not-allowed border-red-400 bg-red-50 text-red-700`;
     case EventSeatStatus.SOLD:
-      return `${base} cursor-not-allowed border-red-400 bg-red-50 text-red-600`;
+      return `${base} cursor-not-allowed border-red-600 bg-red-200 text-red-700`;
     case EventSeatStatus.BLOCKED:
-      return `${base} cursor-not-allowed border-rose-400 bg-rose-50 text-rose-600`;
+      return `${base} cursor-not-allowed border-red-500 bg-red-100 text-red-700`;
     default:
       return `${base} border-gray-300 bg-gray-100 text-gray-500`;
   }

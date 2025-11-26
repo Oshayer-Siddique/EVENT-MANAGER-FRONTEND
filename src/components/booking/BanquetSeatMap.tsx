@@ -154,7 +154,7 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
         <div>
           <p className="font-semibold text-slate-800">Tier legend</p>
           <p className="text-xs text-slate-500">
-            Colors indicate the ticket tier for each chair. Yellow seats are reserved, red seats are sold or blocked.
+            Colors indicate the ticket tier for each chair. Red seats are pre-reserved, blocked, or already sold.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {tiers.map((tier, index) => {
@@ -215,11 +215,11 @@ const BanquetSeatMap = ({ layout, seats, selectedSeats, onSeatSelect, tiers }: B
                 const isSelected = selectedSeats.some(selected => selected.eventSeatId === seat.eventSeatId);
                 const tierColor = seat.tierCode ? tierColorMap.get(seat.tierCode) ?? '#94A3B8' : '#94A3B8';
                 const colorOverrides = (() => {
-                  if (seat.status === EventSeatStatus.RESERVED) {
-                    return { bg: '#FDE68A', border: '#F59E0B' };
+                  if (seat.status === EventSeatStatus.SOLD) {
+                    return { bg: '#FECACA', border: '#DC2626' };
                   }
-                  if (seat.status === EventSeatStatus.SOLD || seat.status === EventSeatStatus.BLOCKED) {
-                    return { bg: '#FCA5A5', border: '#F87171' };
+                  if (seat.status === EventSeatStatus.RESERVED || seat.status === EventSeatStatus.BLOCKED) {
+                    return { bg: '#FEE2E2', border: '#F87171' };
                   }
                   return { bg: withAlpha(tierColor, 0.2), border: tierColor };
                 })();
