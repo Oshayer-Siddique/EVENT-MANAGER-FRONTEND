@@ -658,35 +658,6 @@ const SeatMapDesignerClient = ({ params }: SeatMapPageProps) => {
                 <X className="h-4 w-4" /> Clear selection
               </button>
 
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-xs text-slate-600">
-                <p className="mb-2 text-[13px] font-semibold text-slate-800">Seat status</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    disabled={selectedCount === 0}
-                    onClick={() => void handleUpdateSeatStatus(EventSeatStatus.BLOCKED)}
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 transition",
-                      selectedCount === 0 ? "cursor-not-allowed opacity-60" : "hover:bg-rose-100"
-                    )}
-                  >
-                    Block seats
-                  </button>
-                  <button
-                    type="button"
-                    disabled={selectedCount === 0}
-                    onClick={() => void handleUpdateSeatStatus(EventSeatStatus.AVAILABLE)}
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[13px] font-semibold text-emerald-700 transition",
-                      selectedCount === 0 ? "cursor-not-allowed opacity-60" : "hover:bg-emerald-100"
-                    )}
-                  >
-                    Make available
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-slate-500">Blocked seats disappear from public maps. Making them available reverses that instantly.</p>
-              </div>
-
             </div>
           </section>
 
