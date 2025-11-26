@@ -30,8 +30,6 @@ interface LayoutFormProps {
 
 const layoutTypes = [
   { name: "Theater", code: "200" },
-  { name: "Seminar", code: "205" },
-  { name: "Conference Hall", code: "206" },
   { name: "Banquet", code: "230" },
   { name: "Freestyle", code: "220" },
 ];

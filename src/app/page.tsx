@@ -219,22 +219,7 @@ const EVENT_TYPES: EventCategory[] = [
     ringClass: "ring-blue-200/70",
     keywords: ["seminar", "talk", "lecture"],
   },
-  {
-    name: "Competitions",
-    Icon: Trophy,
-    gradient: "from-orange-500/20 via-orange-500/10 to-orange-500/0",
-    iconClass: "text-orange-500",
-    ringClass: "ring-orange-200/70",
-    keywords: ["competition", "contest", "tournament"],
-  },
-  {
-    name: "Stand-up Comedy",
-    Icon: Mic,
-    gradient: "from-lime-500/20 via-lime-500/10 to-lime-500/0",
-    iconClass: "text-lime-500",
-    ringClass: "ring-lime-200/70",
-    keywords: ["comedy", "stand-up", "humor"],
-  },
+
 ];
 
 export default function MelangeHomepage() {

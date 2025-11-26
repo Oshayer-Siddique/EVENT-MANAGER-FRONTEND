@@ -14,4 +14,6 @@ export interface Venue {
   mapAddress: string | null;
   socialMediaLink: string | null;
   websiteLink: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }

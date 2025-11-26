@@ -47,6 +47,28 @@ const TextareaField = ({ label, name, value, onChange, required = false, placeho
     </div>
 );
 
+const extractCoordinates = (url: string): { latitude: number; longitude: number } | null => {
+  if (!url) {
+    return null;
+  }
+  const decoded = decodeURIComponent(url.trim());
+  const atMatch = decoded.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+  if (atMatch) {
+    return {
+      latitude: Number(atMatch[1]),
+      longitude: Number(atMatch[2]),
+    };
+  }
+  const queryMatch = decoded.match(/q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+  if (queryMatch) {
+    return {
+      latitude: Number(queryMatch[1]),
+      longitude: Number(queryMatch[2]),
+    };
+  }
+  return null;
+};
+
 const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
   const [formData, setFormData] = useState({
     venueName: "",
@@ -60,6 +82,8 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
     mapAddress: "",
     socialMediaLink: "",
     websiteLink: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
   const router = useRouter();
 
@@ -77,12 +101,24 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
         mapAddress: initialData.mapAddress || "",
         socialMediaLink: initialData.socialMediaLink || "",
         websiteLink: initialData.websiteLink || "",
+        latitude: initialData.latitude ?? null,
+        longitude: initialData.longitude ?? null,
       });
     }
   }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === 'mapAddress') {
+      const coords = extractCoordinates(value);
+      setFormData(prev => ({
+        ...prev,
+        mapAddress: value,
+        latitude: coords ? coords.latitude : null,
+        longitude: coords ? coords.longitude : null,
+      }));
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -105,6 +141,8 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
       totalEvents: initialData ? (initialData.totalEvents || 0) : 0,
       liveEvents: initialData ? (initialData.liveEvents || 0) : 0,
       eventsUpcoming: initialData ? (initialData.eventsUpcoming || 0) : 0,
+      latitude: formData.latitude,
+      longitude: formData.longitude,
     } satisfies Omit<Venue, "id">;
     await onSubmit(preparedData);
   };
@@ -137,13 +175,23 @@ const VenueForm: React.FC<VenueFormProps> = ({ onSubmit, initialData }) => {
         {/* Right Column */}
         <div className="space-y-6">
             <InputField label="Google Maps Link" name="mapAddress" value={formData.mapAddress || ''} onChange={handleChange} placeholder="Enter google maps link" />
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+              {formData.latitude != null && formData.longitude != null ? (
+                <p className="font-medium text-slate-700">
+                  Parsed coordinates: <span className="text-slate-900">{formData.latitude.toFixed(6)}</span>,{' '}
+                  <span className="text-slate-900">{formData.longitude.toFixed(6)}</span>
+                </p>
+              ) : (
+                <p>Paste a Google Maps link that contains coordinates (e.g., @lat,long) to capture latitude/longitude automatically.</p>
+              )}
+            </div>
             <InputField label="Website Link" name="websiteLink" value={formData.websiteLink || ''} onChange={handleChange} placeholder="Enter website link" />
             <InputField label="Social Media Link" name="socialMediaLink" value={formData.socialMediaLink || ''} onChange={handleChange} placeholder="Enter a social media link" />
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-2">
               <p className="font-semibold text-slate-800">Event stats</p>
-              <p>Past events: 0</p>
-              <p>Live events: 0</p>
-              <p>Upcoming events: 0</p>
+              <p>Past events: {initialData?.totalEvents ?? 0}</p>
+              <p>Live events: {initialData?.liveEvents ?? 0}</p>
+              <p>Upcoming events: {initialData?.eventsUpcoming ?? 0}</p>
               <p className="text-xs text-slate-500">These fields auto-update based on activity and are not edited here.</p>
             </div>
         </div>
