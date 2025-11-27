@@ -122,6 +122,79 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
     onToggleSeat?.(seat);
   };
 
+  const renderSeatIcon = (
+    definition: HybridLayoutConfiguration["seats"][number],
+    matchedSeat: EventSeat | EventSeatMapSeat | undefined,
+    status: EventSeatStatus,
+    isSelected: boolean,
+  ) => {
+    const palette = statusStyles[status];
+    const baseWidth = Math.max(18, (definition.radius ?? 8) * 2);
+    const backHeight = baseWidth * 0.55;
+    const cushionHeight = baseWidth * 0.45;
+    const tooltipParts: string[] = [];
+
+    if (definition.label) {
+      tooltipParts.push(definition.label);
+    } else if (matchedSeat?.label) {
+      tooltipParts.push(matchedSeat.label);
+    }
+    if (matchedSeat?.tierCode) {
+      tooltipParts.push(`Tier ${matchedSeat.tierCode}`);
+    }
+    if (typeof matchedSeat?.price === 'number') {
+      tooltipParts.push(`$${matchedSeat.price.toFixed(2)}`);
+    }
+
+    return (
+      <g
+        key={definition.id}
+        transform={`translate(${definition.x}, ${definition.y})`}
+        className={cn(!readOnly && selectable.has(status) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')}
+        onPointerDown={() => handleSeatClick(matchedSeat)}
+      >
+        <rect
+          x={-baseWidth / 2 - 1}
+          y={-backHeight / 2 - 4}
+          width={baseWidth + 2}
+          height={backHeight + cushionHeight + 10}
+          rx={baseWidth / 6}
+          fill="rgba(15,23,42,0.12)"
+        />
+        <rect
+          x={-baseWidth / 2}
+          y={-backHeight / 2 - 2}
+          width={baseWidth}
+          height={backHeight}
+          rx={baseWidth / 6}
+          fill={palette.fill}
+          stroke={isSelected ? '#1d4ed8' : palette.border}
+          strokeWidth={isSelected ? 3 : 1.5}
+        />
+        <rect
+          x={-baseWidth / 2}
+          y={cushionHeight / 4}
+          width={baseWidth}
+          height={cushionHeight}
+          rx={baseWidth / 4}
+          fill="#f8fafc"
+          fillOpacity={0.9}
+          stroke={palette.border}
+          strokeWidth={0.8}
+        />
+        <rect
+          x={-baseWidth / 2}
+          y={cushionHeight + cushionHeight / 3}
+          width={baseWidth}
+          height={4}
+          rx={2}
+          fill={palette.border}
+        />
+        {tooltipParts.length > 0 ? <title>{tooltipParts.join(' · ')}</title> : null}
+      </g>
+    );
+  };
+
   return (
     <div className="space-y-3">
       {title ? <p className="text-sm font-semibold text-slate-800">{title}</p> : null}
@@ -135,53 +208,74 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
           >
             <rect width="100%" height="100%" fill="#f8fafc" />
             {configuration.sections.map(section => (
-              <rect
-                key={section.id}
-                x={section.x}
-                y={section.y}
-                width={section.width ?? 180}
-                height={section.height ?? 140}
-                rx={section.shape === 'circle' ? (section.radius ?? 90) : 12}
-                ry={section.shape === 'circle' ? (section.radius ?? 90) : 12}
-                fill={section.color ?? '#bae6fd'}
-                fillOpacity={0.35}
-                stroke={section.color ?? '#38bdf8'}
-                strokeWidth={2}
-              />
+              <g key={section.id}>
+                <rect
+                  x={section.x}
+                  y={section.y}
+                  width={section.width ?? 180}
+                  height={section.height ?? 140}
+                  rx={section.shape === 'circle' ? (section.radius ?? 90) : 12}
+                  ry={section.shape === 'circle' ? (section.radius ?? 90) : 12}
+                  fill={section.color ?? '#bae6fd'}
+                  fillOpacity={0.35}
+                  stroke={section.color ?? '#38bdf8'}
+                  strokeWidth={2}
+                />
+                <text
+                  x={section.x + (section.width ?? 180) / 2}
+                  y={section.y - 6}
+                  textAnchor="middle"
+                  fontSize={12}
+                  fontWeight={600}
+                  fill="#0f172a"
+                >
+                  {(section.label ?? 'Zone').toUpperCase()}
+                </text>
+              </g>
             ))}
 
-            {configuration.elements.map(element => (
-              <rect
-                key={element.id}
-                x={(element.x ?? 0) - (element.width ?? 200) / 2}
-                y={(element.y ?? 0) - (element.height ?? 80) / 2}
-                width={element.width ?? 200}
-                height={element.height ?? 80}
-                rx={10}
-                ry={10}
-                fill={element.color ?? '#0f172a'}
-                opacity={0.85}
-              />
-            ))}
+            {configuration.elements.map(element => {
+              const width = element.width ?? 200;
+              const height = element.height ?? 80;
+              const label = element.label ?? element.type?.replace('-', ' ').toUpperCase();
+              const textY = element.type === 'walkway' ? (element.y ?? 0) : ((element.y ?? 0) - height / 2 - 8);
+
+              const elementNode = (
+                <rect
+                  key={element.id}
+                  x={(element.x ?? 0) - width / 2}
+                  y={(element.y ?? 0) - height / 2}
+                  width={width}
+                  height={height}
+                  rx={10}
+                  ry={10}
+                  fill={element.color ?? '#0f172a'}
+                  opacity={0.85}
+                />
+              );
+
+              return (
+                <g key={element.id}>
+                  {elementNode}
+                  <text
+                    x={element.x ?? 0}
+                    y={textY}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fontWeight={600}
+                    fill={element.type === 'walkway' ? '#0f172a' : '#1e293b'}
+                  >
+                    {label}
+                  </text>
+                </g>
+              );
+            })}
 
             {configuration.seats.map((definition, index) => {
               const matchedSeat = findSeatMatch(definition, index);
               const status = matchedSeat?.status ?? EventSeatStatus.AVAILABLE;
-              const palette = statusStyles[status];
               const isSelected = !!matchedSeat && selectedSeatIds?.has(matchedSeat.seatId ?? matchedSeat.eventSeatId ?? "");
-              return (
-                <circle
-                  key={definition.id}
-                  cx={definition.x}
-                  cy={definition.y}
-                  r={isSelected ? 9 : 7}
-                  fill={palette.fill}
-                  stroke={isSelected ? '#1d4ed8' : palette.border}
-                  strokeWidth={isSelected ? 3 : 2}
-                  className={cn(!readOnly && selectable.has(status) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')}
-                  onPointerDown={() => handleSeatClick(matchedSeat)}
-                />
-              );
+              return renderSeatIcon(definition, matchedSeat, status, isSelected);
             })}
           </svg>
         </div>
