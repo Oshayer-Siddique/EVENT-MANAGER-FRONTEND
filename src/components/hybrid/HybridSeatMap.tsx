@@ -46,11 +46,7 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
         map.set(labelKey, seat);
       }
 
-<<<<<<< HEAD
       const rowKey = buildRowKey(seat.row ?? (seat as EventSeat).type ?? null, seat.number ?? null);
-=======
-      const rowKey = buildRowKey(seat.row, seat.number ?? null);
->>>>>>> a24c48f76c5c2b0b8b57fd8fd5e2ce2c80952e35
       if (rowKey) {
         map.set(rowKey, seat);
       }
@@ -168,22 +164,8 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
               />
             ))}
 
-<<<<<<< HEAD
             {configuration.seats.map((definition, index) => {
               const matchedSeat = findSeatMatch(definition, index);
-=======
-            {configuration.seats.map(definition => {
-              const lookupKeys = [
-                normalizeKey(definition.label),
-                definition.id,
-                buildRowKey(definition.rowLabel, definition.number ?? null),
-              ].filter(Boolean) as string[];
-              let matchedSeat: EventSeat | EventSeatMapSeat | undefined;
-              for (const key of lookupKeys) {
-                matchedSeat = seatLookup.get(key);
-                if (matchedSeat) break;
-              }
->>>>>>> a24c48f76c5c2b0b8b57fd8fd5e2ce2c80952e35
               const status = matchedSeat?.status ?? EventSeatStatus.AVAILABLE;
               const palette = statusStyles[status];
               const isSelected = !!matchedSeat && selectedSeatIds?.has(matchedSeat.seatId ?? matchedSeat.eventSeatId ?? "");
