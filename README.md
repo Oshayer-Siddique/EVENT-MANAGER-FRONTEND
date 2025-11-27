@@ -16,6 +16,19 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Environment variables
+
+Copy `.env.local` as needed (it is already ignored by git) and update the following keys before running the app:
+
+```
+NEXT_PUBLIC_API_BASE_URL=
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+```
+
+For deployments, set the same variables—`NEXT_PUBLIC_API_BASE_URL` should point at your production backend, the Cloudinary values must match your account, and Stripe requires the publishable key for the live project.
+
 ## Ticket Purchase Flow
 
 1. Navigate to an event detail page (`/events/:eventId`). The hero section includes full event metadata, ticket tiers, and a rich seat map grouped by section and row.

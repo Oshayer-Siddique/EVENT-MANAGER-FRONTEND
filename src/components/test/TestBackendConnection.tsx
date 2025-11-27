@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { clientEnv } from "@/lib/env";
 
 export default function TestBackendConnection() {
   const [message, setMessage] = useState<string>("");
@@ -7,7 +8,11 @@ export default function TestBackendConnection() {
   useEffect(() => {
     const testBackend = async () => {
       try {
-        const res = await fetch("http://localhost:5010/api/test/ok", {
+        if (!clientEnv.apiBaseUrl) {
+          throw new Error('NEXT_PUBLIC_API_BASE_URL is not configured.');
+        }
+
+        const res = await fetch(`${clientEnv.apiBaseUrl}/test/ok`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

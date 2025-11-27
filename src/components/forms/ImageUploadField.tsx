@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Upload } from 'lucide-react';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 interface ImageUploadFieldProps {
     value: string[];
@@ -16,17 +17,9 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({ value, onCha
         if (!file) return;
 
         setIsLoading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'EVENT_MANAGEMENT'); // REPLACE WITH YOUR UPLOAD PRESET
-
         try {
-            const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', { // REPLACE WITH YOUR CLOUD NAME
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            onChange([...value, data.secure_url]);
+            const uploadedUrl = await uploadImageToCloudinary(file);
+            onChange([...value, uploadedUrl]);
         } catch (error) {
             console.error('Cloudinary upload error:', error);
         } finally {

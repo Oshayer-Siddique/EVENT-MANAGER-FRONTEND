@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 // src/services/apiClient.ts
 
@@ -7,16 +7,26 @@
  * It automatically adds the base URL and the Authorization header with a JWT token
  * if it's available in localStorage.
  */
+import { clientEnv } from '@/lib/env';
+
 export interface ApiClientError extends Error {
   status?: number;
   body?: unknown;
   retryAfterMs?: number;
 }
 
-const API_BASE_URL = "http://localhost:5010/api";
+const API_BASE_URL = clientEnv.apiBaseUrl;
 const MIN_REQUEST_INTERVAL_MS = 200; // timer between calls so the server isn't spammed
 const MAX_RETRIES = 2;
 const DEFAULT_RETRY_AFTER_MS = 1000;
+
+const getApiBaseUrl = () => {
+  if (!API_BASE_URL) {
+    throw new Error('API base URL is not configured. Set NEXT_PUBLIC_API_BASE_URL in your environment.');
+  }
+
+  return API_BASE_URL;
+};
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -59,11 +69,12 @@ const performRequest = async (url: string, options: RequestInit, attempt = 0): P
   }
 
   // Log the request details for easier debugging
-  console.log(`[API Client] Making ${options.method || 'GET'} request to: ${API_BASE_URL}${url}`);
+  const baseUrl = getApiBaseUrl();
+  console.log(`[API Client] Making ${options.method || 'GET'} request to: ${baseUrl}${url}`);
   console.log("[API Client] Using token:", token ? `${token.substring(0, 15)}...` : "No token");
   console.log("[API Client] Sending headers:", JSON.stringify(Object.fromEntries(requestHeaders.entries()), null, 2));
 
-  const res = await fetch(`${API_BASE_URL}${url}`, {
+  const res = await fetch(`${baseUrl}${url}`, {
     ...options,
     headers: requestHeaders,
   });

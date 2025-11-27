@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { ModalCombobox } from '@/components/ui/modal-combobox';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 interface EventFormProps {
     onSubmit: (data: CreateEventRequest) => void;
@@ -157,23 +158,9 @@ const EventForm = ({ onSubmit, initialData, isSubmitting }: EventFormProps) => {
         const uploadedUrls: string[] = [];
 
         for (const file of Array.from(files)) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', 'EVENT_MANAGEMENT');
-
             try {
-                const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data?.error?.message ?? 'Failed to upload image');
-                }
-
-                uploadedUrls.push(data.secure_url as string);
+                const url = await uploadImageToCloudinary(file);
+                uploadedUrls.push(url);
             } catch (error) {
                 throw error;
             }

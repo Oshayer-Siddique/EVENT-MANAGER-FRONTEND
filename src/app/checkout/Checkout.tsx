@@ -14,8 +14,9 @@ import type { Hold } from '../../types/hold';
 import type { Event, EventTicketDetails } from '../../types/event';
 import type { CreatePaymentIntentResponse } from '../../types/payment';
 import { Button } from '../../components/ui/button';
+import { clientEnv } from '@/lib/env';
 
-const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '';
+const STRIPE_PUBLISHABLE_KEY = clientEnv.stripePublishableKey;
 const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
 
 const HOLD_EXPIRY_WARNING_SECONDS = 60; // warn if less than a minute remains

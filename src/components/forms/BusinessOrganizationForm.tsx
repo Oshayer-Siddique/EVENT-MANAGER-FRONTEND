@@ -3,6 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { BusinessOrganization } from '@/types/businessOrganization';
 import { Upload } from 'lucide-react';
 import { useState } from 'react';
@@ -50,17 +51,9 @@ export default function BusinessOrganizationForm({
     if (!file) return;
 
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'EVENT_MANAGEMENT'); // REPLACE WITH YOUR UPLOAD PRESET
-
     try {
-      const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', { // REPLACE WITH YOUR CLOUD NAME
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      setValue("imageUrl", data.secure_url);
+      const uploadedUrl = await uploadImageToCloudinary(file);
+      setValue("imageUrl", uploadedUrl);
     } catch (error) {
       console.error('Cloudinary upload error:', error);
     } finally {

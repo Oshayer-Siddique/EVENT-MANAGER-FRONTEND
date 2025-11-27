@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createEventManager, createOperator, createEventChecker } from "@/services/userService";
 import { ArrowLeft } from "lucide-react";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
 export default function NewTeamMemberPage() {
   const [formData, setFormData] = useState({
@@ -30,17 +31,9 @@ export default function NewTeamMemberPage() {
     if (!file) return;
 
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'EVENT_MANAGEMENT'); // REPLACE WITH YOUR UPLOAD PRESET
-
     try {
-      const response = await fetch('https://api.cloudinary.com/v1_1/dyqlighvo/image/upload', { // REPLACE WITH YOUR CLOUD NAME
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      setFormData(prev => ({ ...prev, imageUrl: data.secure_url }));
+      const uploadedUrl = await uploadImageToCloudinary(file);
+      setFormData(prev => ({ ...prev, imageUrl: uploadedUrl }));
     } catch (error) {
       setError('Image upload failed. Please try again.');
       console.error('Cloudinary upload error:', error);
