@@ -10,6 +10,7 @@ import { useEventSeats } from '@/hooks/useEventSeats';
 import { getEvent, getEventTicketDetails } from '@/services/eventService';
 import type { Event, EventTicketDetails } from '@/types/event';
 import type { EventSeat } from '@/types/eventSeat';
+import { EventSeatStatus } from '@/types/eventSeat';
 import { getBanquetLayout } from '@/services/banquetLayoutService';
 import type { BanquetLayout } from '@/types/banquet';
 import BanquetSeatMap from '@/components/booking/BanquetSeatMap';

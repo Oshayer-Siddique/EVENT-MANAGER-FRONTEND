@@ -24,14 +24,87 @@ const statusStyles = {
   [EventSeatStatus.BLOCKED]: { fill: "#94a3b8", border: "#475569" },
 };
 
+const normalizeKey = (value?: string | null) => (value ? value.trim().toLowerCase() : null);
+const buildRowKey = (row?: string | null, number?: number | null) => {
+  if (!row && number == null) {
+    return null;
+  }
+  return `${row ?? ''}-${number ?? ''}`.trim().toLowerCase();
+};
+
 const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatuses, onToggleSeat, readOnly, title }: HybridSeatMapProps) => {
+  const sectionLabelMap = useMemo(() => {
+    if (!configuration) return new Map<string, string>();
+    return new Map(configuration.sections.map(section => [section.id, section.label ?? '']));
+  }, [configuration]);
+
   const seatLookup = useMemo(() => {
     const map = new Map<string, EventSeat | EventSeatMapSeat>();
     seats.forEach(seat => {
-      map.set(seat.label, seat);
+      const labelKey = normalizeKey(seat.label);
+      if (labelKey) {
+        map.set(labelKey, seat);
+      }
+
+      const rowKey = buildRowKey(seat.row ?? (seat as EventSeat).type ?? null, seat.number ?? null);
+      if (rowKey) {
+        map.set(rowKey, seat);
+      }
+
+      if (seat.seatId) {
+        map.set(seat.seatId, seat);
+      }
+
+      if ('eventSeatId' in seat && seat.eventSeatId) {
+        map.set(seat.eventSeatId, seat);
+      }
     });
     return map;
   }, [seats]);
+
+  const findSeatMatch = (definition: HybridLayoutConfiguration["seats"][number], definitionIndex: number) => {
+    const lookupKeys = [
+      normalizeKey(definition.label),
+      definition.id,
+      buildRowKey(definition.rowLabel, definition.number ?? null),
+      definition.sectionId ? buildRowKey(sectionLabelMap.get(definition.sectionId), definition.number ?? null) : null,
+    ].filter(Boolean) as string[];
+
+    for (const key of lookupKeys) {
+      const candidate = seatLookup.get(key);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    const normalizedDefinitionLabel = normalizeKey(definition.label);
+    const normalizedRowKey = buildRowKey(definition.rowLabel, definition.number ?? null);
+    const normalizedSectionKey = definition.sectionId
+      ? buildRowKey(sectionLabelMap.get(definition.sectionId), definition.number ?? null)
+      : null;
+
+    const matchedByScan = seats.find(seat => {
+      if (normalizedDefinitionLabel && normalizeKey(seat.label) === normalizedDefinitionLabel) {
+        return true;
+      }
+      if (definition.id && (seat.seatId === definition.id || ('eventSeatId' in seat && seat.eventSeatId === definition.id))) {
+        return true;
+      }
+      if (normalizedRowKey && buildRowKey(seat.row ?? (seat as EventSeat).type ?? null, seat.number ?? null) === normalizedRowKey) {
+        return true;
+      }
+      if (normalizedSectionKey && buildRowKey((seat as EventSeat).type ?? null, seat.number ?? null) === normalizedSectionKey) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matchedByScan) {
+      return matchedByScan;
+    }
+
+    return seats[definitionIndex];
+  };
 
   if (!configuration) {
     return (
@@ -91,11 +164,11 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
               />
             ))}
 
-            {configuration.seats.map(definition => {
-              const matchedSeat = seatLookup.get(definition.label ?? `${definition.rowLabel ?? ''}-${definition.number ?? ''}`);
+            {configuration.seats.map((definition, index) => {
+              const matchedSeat = findSeatMatch(definition, index);
               const status = matchedSeat?.status ?? EventSeatStatus.AVAILABLE;
               const palette = statusStyles[status];
-              const isSelected = !!matchedSeat && selectedSeatIds?.has(matchedSeat.seatId);
+              const isSelected = !!matchedSeat && selectedSeatIds?.has(matchedSeat.seatId ?? matchedSeat.eventSeatId ?? "");
               return (
                 <circle
                   key={definition.id}
