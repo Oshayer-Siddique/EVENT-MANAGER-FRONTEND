@@ -8,7 +8,8 @@ import { Layout } from "@/types/layout";
 import { Venue } from "@/types/venue";
 import { deleteVenueLayout, getSeatLayoutById, getVenueById, updateVenueLayout } from "@/services/venueService";
 import { replaceSeatsFromPlan } from "@/lib/seating";
-import { saveHybridLayout } from '@/services/hybridLayoutService';
+import { getHybridLayout, saveHybridLayout } from '@/services/hybridLayoutService';
+import type { HybridLayoutConfiguration } from '@/types/hybrid';
 
 const EditLayoutPage = () => {
   const router = useRouter();
@@ -32,8 +33,19 @@ const EditLayoutPage = () => {
           getVenueById(venueId),
           getSeatLayoutById(layoutId),
         ]);
+
+        let enrichedLayout = layoutData;
+        if (layoutData.typeName?.toLowerCase() === 'hybrid') {
+          try {
+            const hybridConfig = await getHybridLayout(layoutId);
+            enrichedLayout = { ...layoutData, configuration: hybridConfig as HybridLayoutConfiguration };
+          } catch (hybridError) {
+            console.warn('Failed to load hybrid configuration for edit view', hybridError);
+          }
+        }
+
         setVenue(venueData);
-        setLayout(layoutData);
+        setLayout(enrichedLayout);
       } catch (error) {
         console.error("Failed to load layout for editing:", error);
         alert("Unable to load this seating layout. Please try again.");

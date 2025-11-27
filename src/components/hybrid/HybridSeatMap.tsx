@@ -149,7 +149,7 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
     return (
       <g
         key={definition.id}
-        transform={`translate(${definition.x}, ${definition.y})`}
+        transform={`translate(${definition.x}, ${definition.y}) rotate(${definition.rotation ?? 0})`}
         className={cn(!readOnly && selectable.has(status) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')}
         onPointerDown={() => handleSeatClick(matchedSeat)}
       >
@@ -207,38 +207,48 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
             viewBox={`0 0 ${configuration.canvas.width} ${configuration.canvas.height}`}
           >
             <rect width="100%" height="100%" fill="#f8fafc" />
-            {configuration.sections.map(section => (
-              <g key={section.id}>
-                <rect
-                  x={section.x}
-                  y={section.y}
-                  width={section.width ?? 180}
-                  height={section.height ?? 140}
-                  rx={section.shape === 'circle' ? (section.radius ?? 90) : 12}
-                  ry={section.shape === 'circle' ? (section.radius ?? 90) : 12}
-                  fill={section.color ?? '#bae6fd'}
-                  fillOpacity={0.35}
-                  stroke={section.color ?? '#38bdf8'}
-                  strokeWidth={2}
-                />
-                <text
-                  x={section.x + (section.width ?? 180) / 2}
-                  y={section.y - 6}
-                  textAnchor="middle"
-                  fontSize={12}
-                  fontWeight={600}
-                  fill="#0f172a"
-                >
-                  {(section.label ?? 'Zone').toUpperCase()}
-                </text>
-              </g>
-            ))}
+            {configuration.sections.map(section => {
+              const width = section.width ?? 180;
+              const height = section.height ?? 140;
+              const radius = section.shape === 'circle' ? (section.radius ?? width / 2) : 12;
+              const cx = section.shape === 'circle' ? section.x + radius : section.x + width / 2;
+              const cy = section.shape === 'circle' ? section.y + radius : section.y + height / 2;
+              const rotation = section.rotation ?? 0;
+              return (
+                <g key={section.id} transform={`rotate(${rotation}, ${cx}, ${cy})`}>
+                  <rect
+                    x={section.x}
+                    y={section.y}
+                    width={width}
+                    height={height}
+                    rx={section.shape === 'circle' ? radius : 12}
+                    ry={section.shape === 'circle' ? radius : 12}
+                    fill={section.color ?? '#bae6fd'}
+                    fillOpacity={0.35}
+                    stroke={section.color ?? '#38bdf8'}
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={section.x + width / 2}
+                    y={section.y - 6}
+                    textAnchor="middle"
+                    fontSize={12}
+                    fontWeight={600}
+                    fill="#0f172a"
+                    transform={`rotate(${-rotation}, ${section.x + width / 2}, ${section.y - 6})`}
+                  >
+                    {(section.label ?? 'Zone').toUpperCase()}
+                  </text>
+                </g>
+              );
+            })}
 
             {configuration.elements.map(element => {
               const width = element.width ?? 200;
               const height = element.height ?? 80;
               const label = element.label ?? element.type?.replace('-', ' ').toUpperCase();
               const textY = element.type === 'walkway' ? (element.y ?? 0) : ((element.y ?? 0) - height / 2 - 8);
+              const rotation = element.rotation ?? 0;
 
               const elementNode = (
                 <rect
@@ -255,7 +265,7 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
               );
 
               return (
-                <g key={element.id}>
+                <g key={element.id} transform={`rotate(${rotation}, ${element.x ?? 0}, ${element.y ?? 0})`}>
                   {elementNode}
                   <text
                     x={element.x ?? 0}
@@ -264,6 +274,7 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
                     fontSize={11}
                     fontWeight={600}
                     fill={element.type === 'walkway' ? '#0f172a' : '#1e293b'}
+                    transform={`rotate(${-rotation}, ${element.x ?? 0}, ${textY})`}
                   >
                     {label}
                   </text>

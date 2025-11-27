@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { getVenueById, deleteVenue, getVenueLayouts, deleteVenueLayout } from "@/services/venueService";
+import { getHybridLayout } from "@/services/hybridLayoutService";
 import { Venue } from "@/types/venue";
 import { Layout } from "@/types/layout";
 import LayoutPreview from "@/components/previews/LayoutPreview";
@@ -22,23 +23,24 @@ const VenueDetailsPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      const fetchVenueData = async () => {
-        try {
-          const [venueData, layoutsData] = await Promise.all([
-            getVenueById(id),
-            getVenueLayouts(id),
-          ]);
-          setVenue(venueData);
-          setLayouts(layoutsData);
-        } catch (error) {
-          console.error("Failed to fetch venue data:", error);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchVenueData();
-    }
+    if (!id) return;
+
+    const fetchVenueData = async () => {
+      try {
+        const [venueData, layoutsData] = await Promise.all([
+          getVenueById(id),
+          getVenueLayouts(id),
+        ]);
+        setVenue(venueData);
+        setLayouts(layoutsData);
+      } catch (error) {
+        console.error("Failed to fetch venue data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchVenueData();
   }, [id]);
 
   const handleDelete = async () => {
@@ -225,6 +227,29 @@ const InfoItem = ({ icon: Icon, label, value, href }) => {
 };
 
 const LayoutCard = ({ layout, onManage, onEdit, onDelete }: { layout: Layout; onManage: (layoutId: string) => void; onEdit: (layoutId: string) => void; onDelete: (layoutId: string) => void }) => {
+  const [previewConfig, setPreviewConfig] = useState(layout.configuration ?? null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const isHybrid = layout.typeName?.toLowerCase() === 'hybrid';
+
+  useEffect(() => {
+    setPreviewConfig(layout.configuration ?? null);
+  }, [layout.configuration]);
+
+  const ensureHybridPreview = async () => {
+    if (!isHybrid || previewConfig || previewLoading) {
+      return;
+    }
+    try {
+      setPreviewLoading(true);
+      const config = await getHybridLayout(layout.id);
+      setPreviewConfig(config);
+    } catch (error) {
+      console.warn('Failed to load hybrid preview for layout card', error);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const details = [
     {label: 'Capacity', value: layout.totalCapacity},
     layout.totalRows > 0 && {label: 'Rows', value: layout.totalRows},
@@ -255,9 +280,12 @@ const LayoutCard = ({ layout, onManage, onEdit, onDelete }: { layout: Layout; on
             ))}
         </div>
       </div>
-      <details className="mt-4 text-sm">
+      <details className="mt-4 text-sm" onToggle={event => { if (event.currentTarget.open) { void ensureHybridPreview(); } }}>
         <summary className="cursor-pointer text-indigo-600 hover:underline font-semibold">Show Preview</summary>        
         <div className="mt-2 p-2 flex justify-center items-center bg-slate-50 rounded-lg border border-slate-200">
+          {previewLoading ? (
+            <p className="text-xs text-slate-500">Loading preview…</p>
+          ) : (
           <LayoutPreview
             typeName={layout.typeName}
             totalRows={layout.totalRows}
@@ -266,8 +294,9 @@ const LayoutCard = ({ layout, onManage, onEdit, onDelete }: { layout: Layout; on
             chairsPerTable={layout.chairsPerTable}
             standingCapacity={layout.standingCapacity}
             theaterPlan={layout.configuration?.kind === "theater" ? layout.configuration.summary : undefined}
-            configuration={layout.configuration}
+            configuration={previewConfig ?? layout.configuration}
           />
+          )}
         </div>
       </details>
       <div className="mt-4 flex flex-wrap justify-end gap-2">

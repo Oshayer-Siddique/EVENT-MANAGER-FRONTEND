@@ -7,6 +7,8 @@ import { getSeatLayoutById } from '@/services/venueService';
 import { createSeatForLayout, deleteSeatForLayout, getSeatsForLayout, updateSeatForLayout } from '@/services/seatService';
 import type { Layout } from '@/types/layout';
 import type { Seat } from '@/types/seat';
+import { getHybridLayout } from '@/services/hybridLayoutService';
+import type { HybridLayoutConfiguration } from '@/types/hybrid';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,7 +64,18 @@ const SeatManagementPage = () => {
           getSeatLayoutById(layoutId),
           getSeatsForLayout(layoutId),
         ]);
-        setLayout(layoutData);
+
+        let enrichedLayout: Layout = layoutData;
+        if (layoutData.typeName?.toLowerCase() === 'hybrid') {
+          try {
+            const hybridConfig = await getHybridLayout(layoutId);
+            enrichedLayout = { ...layoutData, configuration: hybridConfig as HybridLayoutConfiguration };
+          } catch (hybridError) {
+            console.warn('Failed to load hybrid configuration for overview', hybridError);
+          }
+        }
+
+        setLayout(enrichedLayout);
         setSeats(seatData);
       } catch (err) {
         console.error('Failed to load seat layout:', err);

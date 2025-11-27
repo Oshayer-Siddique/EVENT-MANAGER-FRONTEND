@@ -7,6 +7,7 @@ import LayoutPreview from "@/components/previews/LayoutPreview";
 import { Layout } from "@/types/layout";
 import type { HybridLayoutConfiguration } from "@/types/hybrid";
 import { createDefaultHybridConfiguration } from "@/types/hybrid";
+import { getHybridLayout } from '@/services/hybridLayoutService';
 
 import TheaterLayoutDesigner, {
   buildSummary,
@@ -162,6 +163,32 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
       setDesignerSeed(undefined);
     }
   }, [designerDefaults.state.sections, designerDefaults.summary.columns, designerDefaults.summary.rows, initialData]);
+
+  useEffect(() => {
+    if (!initialData || initialData.typeName !== 'Hybrid') {
+      return;
+    }
+    if (initialData.configuration && initialData.configuration.kind === 'hybrid') {
+      return;
+    }
+
+    let cancelled = false;
+    const loadHybrid = async () => {
+      try {
+        const config = await getHybridLayout(initialData.id);
+        if (!cancelled) {
+          setHybridLayout(config);
+        }
+      } catch (error) {
+        console.warn('Failed to load hybrid configuration for form', error);
+      }
+    };
+
+    void loadHybrid();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialData?.id, initialData?.typeName, initialData?.configuration]);
 
   const activeSeatRowCount = theaterPlan.rows.filter((row) => !row.isWalkway && row.activeSeatCount > 0).length;
 
@@ -446,7 +473,9 @@ const LayoutForm: React.FC<LayoutFormProps> = ({ onSubmit, initialData, venueMax
                   configuration={
                     isTheaterLayout
                       ? { kind: 'theater', state: theaterState, summary: theaterPlan }
-                      : undefined
+                      : isHybridLayout
+                        ? hybridLayout
+                        : undefined
                   }
                 />
               </div>
