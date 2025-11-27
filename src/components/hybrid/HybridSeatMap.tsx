@@ -24,11 +24,35 @@ const statusStyles = {
   [EventSeatStatus.BLOCKED]: { fill: "#94a3b8", border: "#475569" },
 };
 
+const normalizeKey = (value?: string | null) => (value ? value.trim().toLowerCase() : null);
+const buildRowKey = (row?: string | null, number?: number | null) => {
+  if (!row && number == null) {
+    return null;
+  }
+  return `${row ?? ''}-${number ?? ''}`.trim().toLowerCase();
+};
+
 const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatuses, onToggleSeat, readOnly, title }: HybridSeatMapProps) => {
   const seatLookup = useMemo(() => {
     const map = new Map<string, EventSeat | EventSeatMapSeat>();
     seats.forEach(seat => {
-      map.set(seat.label, seat);
+      const labelKey = normalizeKey(seat.label);
+      if (labelKey) {
+        map.set(labelKey, seat);
+      }
+
+      const rowKey = buildRowKey(seat.row, seat.number ?? null);
+      if (rowKey) {
+        map.set(rowKey, seat);
+      }
+
+      if (seat.seatId) {
+        map.set(seat.seatId, seat);
+      }
+
+      if ('eventSeatId' in seat && seat.eventSeatId) {
+        map.set(seat.eventSeatId, seat);
+      }
     });
     return map;
   }, [seats]);
@@ -92,7 +116,16 @@ const HybridSeatMap = ({ configuration, seats, selectedSeatIds, selectableStatus
             ))}
 
             {configuration.seats.map(definition => {
-              const matchedSeat = seatLookup.get(definition.label ?? `${definition.rowLabel ?? ''}-${definition.number ?? ''}`);
+              const lookupKeys = [
+                normalizeKey(definition.label),
+                definition.id,
+                buildRowKey(definition.rowLabel, definition.number ?? null),
+              ].filter(Boolean) as string[];
+              let matchedSeat: EventSeat | EventSeatMapSeat | undefined;
+              for (const key of lookupKeys) {
+                matchedSeat = seatLookup.get(key);
+                if (matchedSeat) break;
+              }
               const status = matchedSeat?.status ?? EventSeatStatus.AVAILABLE;
               const palette = statusStyles[status];
               const isSelected = !!matchedSeat && selectedSeatIds?.has(matchedSeat.seatId);
