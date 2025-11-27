@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { getEvent, getEventTicketDetails, syncEventSeats } from '@/services/eventService';
-import { getVenueById } from '@/services/venueService';
+import { getVenueById, getSeatLayoutById } from '@/services/venueService';
 import { getEventManagers, getOperators, getEventCheckers } from '@/services/userService';
 import { getArtists } from '@/services/artistService';
 import { getSponsors } from '@/services/sponsorService';
@@ -16,11 +16,13 @@ import { Artist } from '@/types/artist';
 import { Sponsor } from '@/types/sponsor';
 import { BusinessOrganization } from '@/types/businessOrganization';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Ticket, Armchair, Users, Building, Mic, DollarSign } from 'lucide-react';
+import { ArrowLeft, Edit, Ticket, Armchair, Users, Building, Mic, DollarSign, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import LayoutPreview from '@/components/previews/LayoutPreview';
+import type { Layout } from '@/types/layout';
 
 export default function ViewEventPage() {
     const router = useRouter();
@@ -38,6 +40,9 @@ export default function ViewEventPage() {
     const [isSyncingSeats, setIsSyncingSeats] = useState(false);
     const [seatSyncMessage, setSeatSyncMessage] = useState<string | null>(null);
     const [seatSyncError, setSeatSyncError] = useState<string | null>(null);
+    const [seatLayoutDetail, setSeatLayoutDetail] = useState<Layout | null>(null);
+    const [loadingSeatLayout, setLoadingSeatLayout] = useState(false);
+    const [seatLayoutDetailError, setSeatLayoutDetailError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -84,6 +89,42 @@ export default function ViewEventPage() {
         };
         fetchData();
     }, [id]);
+
+    useEffect(() => {
+        const layoutId = ticketDetails?.seatLayout?.id;
+        if (!layoutId) {
+            setSeatLayoutDetail(null);
+            setSeatLayoutDetailError(null);
+            return;
+        }
+
+        let cancelled = false;
+        const loadLayout = async () => {
+            try {
+                setLoadingSeatLayout(true);
+                setSeatLayoutDetailError(null);
+                const layout = await getSeatLayoutById(layoutId);
+                if (!cancelled) {
+                    setSeatLayoutDetail(layout);
+                }
+            } catch (error) {
+                console.error('Failed to fetch seat layout preview', error);
+                if (!cancelled) {
+                    setSeatLayoutDetail(null);
+                    setSeatLayoutDetailError('We could not load the seat layout preview.');
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingSeatLayout(false);
+                }
+            }
+        };
+
+        void loadLayout();
+        return () => {
+            cancelled = true;
+        };
+    }, [ticketDetails?.seatLayout?.id]);
 
     const handleSyncSeats = async () => {
         if (!id || !ticketDetails?.seatLayout) {
@@ -316,42 +357,66 @@ export default function ViewEventPage() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                                   <p>
-  <strong className="font-semibold text-black">Name:</strong>{' '}
-  <span className="text-blue-600">{ticketDetails.seatLayout.layoutName}</span>
-</p>
+                                    <p>
+                                        <strong className="font-semibold text-black">Name:</strong>{' '}
+                                        <span className="text-blue-600">{ticketDetails.seatLayout.layoutName}</span>
+                                    </p>
 
-<p>
-  <strong className="font-semibold text-black">Type:</strong>{' '}
-  <span className="text-blue-600">{ticketDetails.seatLayout.typeName}</span>
-</p>
+                                    <p>
+                                        <strong className="font-semibold text-black">Type:</strong>{' '}
+                                        <span className="text-blue-600">{ticketDetails.seatLayout.typeName}</span>
+                                    </p>
 
-<p>
-  <strong className="font-semibold text-black">Capacity:</strong>{' '}
-  <span className="text-blue-600">{ticketDetails.seatLayout.totalCapacity}</span>
-</p>
+                                    <p>
+                                        <strong className="font-semibold text-black">Capacity:</strong>{' '}
+                                        <span className="text-blue-600">{ticketDetails.seatLayout.totalCapacity}</span>
+                                    </p>
 
-{ticketDetails.seatLayout.totalRows && (
-  <p>
-    <strong className="font-semibold text-black">Rows:</strong>{' '}
-    <span className="text-blue-600">{ticketDetails.seatLayout.totalRows}</span>
-  </p>
-)}
+                                    {ticketDetails.seatLayout.totalRows && (
+                                        <p>
+                                            <strong className="font-semibold text-black">Rows:</strong>{' '}
+                                            <span className="text-blue-600">{ticketDetails.seatLayout.totalRows}</span>
+                                        </p>
+                                    )}
 
-{ticketDetails.seatLayout.totalCols && (
-  <p>
-    <strong className="font-semibold text-black">Cols:</strong>{' '}
-    <span className="text-blue-600">{ticketDetails.seatLayout.totalCols}</span>
-  </p>
-)}
+                                    {ticketDetails.seatLayout.totalCols && (
+                                        <p>
+                                            <strong className="font-semibold text-black">Cols:</strong>{' '}
+                                            <span className="text-blue-600">{ticketDetails.seatLayout.totalCols}</span>
+                                        </p>
+                                    )}
 
-{ticketDetails.seatLayout.standingCapacity && (
-  <p>
-    <strong className="font-semibold text-black">Standing:</strong>{' '}
-    <span className="text-red-600">{ticketDetails.seatLayout.standingCapacity}</span>
-  </p>
-)}
+                                    {ticketDetails.seatLayout.standingCapacity && (
+                                        <p>
+                                            <strong className="font-semibold text-black">Standing:</strong>{' '}
+                                            <span className="text-red-600">{ticketDetails.seatLayout.standingCapacity}</span>
+                                        </p>
+                                    )}
 
+                                    <div className="col-span-full">
+                                        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                                            {loadingSeatLayout ? (
+                                                <div className="flex h-48 items-center justify-center text-slate-500">
+                                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                                </div>
+                                            ) : seatLayoutDetail ? (
+                                                <LayoutPreview
+                                                    typeName={seatLayoutDetail.typeName}
+                                                    totalRows={seatLayoutDetail.totalRows ?? ticketDetails.seatLayout.totalRows}
+                                                    totalCols={seatLayoutDetail.totalCols ?? ticketDetails.seatLayout.totalCols}
+                                                    totalTables={seatLayoutDetail.totalTables ?? ticketDetails.seatLayout.totalTables}
+                                                    chairsPerTable={seatLayoutDetail.chairsPerTable ?? ticketDetails.seatLayout.chairsPerTable}
+                                                    standingCapacity={seatLayoutDetail.standingCapacity ?? ticketDetails.seatLayout.standingCapacity}
+                                                    theaterPlan={seatLayoutDetail.configuration && seatLayoutDetail.configuration.kind === 'theater' ? seatLayoutDetail.configuration.summary : undefined}
+                                                    configuration={seatLayoutDetail.configuration ?? null}
+                                                />
+                                            ) : (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
+                                                    {seatLayoutDetailError ?? 'Seat layout configuration has not been saved yet.'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </CardContent>
                                 {(seatSyncMessage || seatSyncError) && (
                                     <div className="px-6 pb-4">
