@@ -4,6 +4,14 @@ export interface HeldSeatInfo {
     tierCode: string;
 }
 
+export interface AppliedDiscountInfo {
+    discountId: string;
+    code: string;
+    name: string;
+    amount: number;
+    autoApplied: boolean;
+}
+
 export interface Hold {
     id: string; // UUID
     eventId: string; // UUID
@@ -14,6 +22,10 @@ export interface Hold {
     finalizedPaymentId?: string; // UUID
     createdAt: string; // OffsetDateTime
     updatedAt: string; // OffsetDateTime
+    subtotalAmount?: number;
+    discountAmount?: number;
+    totalAmount?: number;
+    appliedDiscounts?: AppliedDiscountInfo[];
 }
 
 export interface HoldCreate {
@@ -25,6 +37,7 @@ export interface HoldCreate {
         quantity: number;
     }>;
     expiresAt: string;
+    discountCode?: string;
 }
 
 export interface HoldReleaseRequest {

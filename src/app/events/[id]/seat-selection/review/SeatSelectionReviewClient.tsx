@@ -12,6 +12,8 @@ import { getEventSeats } from '@/services/eventSeatService';
 import holdService from '@/services/holdService';
 import type { Event, EventTicketDetails } from '@/types/event';
 import type { EventSeat } from '@/types/eventSeat';
+import discountService from '@/services/discountService';
+import type { DiscountValidationResponse } from '@/types/discount';
 
 interface SeatSelectionReviewPageProps {
   params: { id: string };
@@ -29,6 +31,10 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; data: DiscountValidationResponse } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -90,12 +96,70 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
     };
   }, [id, router]);
 
+  useEffect(() => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
+  }, [selectedSeats.length]);
+
   const subtotal = useMemo(() => {
     return selectedSeats.reduce((total, seat) => {
       const price = seat.price ?? ticketDetails?.ticketTiers.find(t => t.tierCode === seat.tierCode)?.price ?? 0;
       return total + price;
     }, 0);
   }, [selectedSeats, ticketDetails?.ticketTiers]);
+
+  const discountLineItems = useMemo(() => {
+    return selectedSeats.map(seat => ({
+      seatId: seat.seatId,
+      tierCode: seat.tierCode,
+      quantity: 1,
+      unitPrice: seat.price ?? ticketDetails?.ticketTiers.find(t => t.tierCode === seat.tierCode)?.price ?? 0,
+    }));
+  }, [selectedSeats, ticketDetails?.ticketTiers]);
+
+  const discountTotal = appliedDiscount?.data.discountTotal ?? 0;
+  const totalDue = appliedDiscount?.data.totalDue ?? subtotal;
+  const appliedDiscountBreakdown = appliedDiscount?.data.appliedDiscounts ?? [];
+
+  const handleApplyDiscount = async () => {
+    const normalizedCode = promoCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setDiscountError('Enter a promo code to apply.');
+      return;
+    }
+    if (!user?.id) {
+      setDiscountError('Please sign in to use promo codes.');
+      return;
+    }
+    if (selectedSeats.length === 0) {
+      setDiscountError('Select seats before applying a code.');
+      return;
+    }
+
+    try {
+      setDiscountLoading(true);
+      setDiscountError(null);
+      const response = await discountService.validate({
+        eventId: id,
+        buyerId: user.id,
+        discountCode: normalizedCode,
+        includeAutomaticDiscounts: true,
+        items: discountLineItems,
+      });
+      setAppliedDiscount({ code: normalizedCode, data: response });
+    } catch (err) {
+      console.error('Failed to apply discount', err);
+      setAppliedDiscount(null);
+      setDiscountError(err instanceof Error ? err.message : 'We could not apply that code.');
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
+  };
 
   const handleConfirmReservation = async () => {
     if (selectedSeats.length === 0) {
@@ -116,6 +180,7 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
         buyerId: user?.id,
         seatIds,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        discountCode: appliedDiscount?.code,
       });
 
       window.sessionStorage.removeItem(`seat-selection:${id}`);
@@ -173,7 +238,7 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
               </div>
               <div className="text-right">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Total</p>
-                <p className="text-2xl font-bold text-slate-900">${subtotal.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-slate-900">${totalDue.toFixed(2)}</p>
               </div>
             </header>
 
@@ -188,6 +253,33 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
                 </li>
               ))}
             </ul>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 px-4 py-3 text-sm">
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Subtotal</span>
+                <span>${subtotal.toFixed(2)}</span>
+              </div>
+              {discountTotal > 0 && (
+                <div className="mt-1 space-y-1 text-emerald-700">
+                  <div className="flex items-center justify-between">
+                    <span>Discounts</span>
+                    <span>- ${discountTotal.toFixed(2)}</span>
+                  </div>
+                  <ul className="text-xs text-slate-500">
+                    {appliedDiscountBreakdown.map(item => (
+                      <li key={item.discountId} className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-600">{item.code}</span>
+                        <span>- ${item.amount.toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-2 flex items-center justify-between font-semibold text-slate-900">
+                <span>Total due</span>
+                <span>${totalDue.toFixed(2)}</span>
+              </div>
+            </div>
           </section>
 
           <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -225,6 +317,73 @@ export default function SeatSelectionReviewClient({ params }: SeatSelectionRevie
               </div>
             </div>
 
+            <Button
+              type="button"
+              onClick={handleConfirmReservation}
+              disabled={submitting}
+              className="w-full rounded-2xl bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Reserving seats…
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="mr-2 h-5 w-5" /> Continue to checkout
+                </>
+              )}
+            </Button>
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">Promo code</h2>
+            <p className="text-sm text-slate-500">Have a discount code? Apply it before heading to checkout.</p>
+            <div className="space-y-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={event => setPromoCode(event.target.value)}
+                  placeholder="Enter code"
+                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 font-medium uppercase tracking-wide text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                />
+                <Button
+                  type="button"
+                  onClick={handleApplyDiscount}
+                  disabled={discountLoading}
+                  className="rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  {discountLoading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Applying…
+                    </span>
+                  ) : (
+                    'Apply'
+                  )}
+                </Button>
+              </div>
+              {discountError && <p className="text-sm text-rose-600">{discountError}</p>}
+              {appliedDiscount && (
+                <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <div>
+                    <p className="font-semibold">Code applied</p>
+                    <p className="text-xs uppercase tracking-wide">{appliedDiscount.code}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveDiscount}
+                    className="text-xs font-semibold uppercase tracking-wide text-emerald-800 underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">Finalize</h2>
+            <p className="text-sm text-slate-500">Double-check your contact info and continue to secure the seats.</p>
             <Button
               type="button"
               onClick={handleConfirmReservation}

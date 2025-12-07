@@ -12,6 +12,8 @@ import holdService from '@/services/holdService';
 import { useEventSeats } from '@/hooks/useEventSeats';
 import type { Event, EventTicketDetails, EventTicketTier } from '@/types/event';
 import { EventSeatStatus } from '@/types/eventSeat';
+import discountService from '@/services/discountService';
+import type { DiscountValidationResponse } from '@/types/discount';
 
 const CARD_BASE_CLASS =
   'rounded-2xl border border-slate-200/80 bg-white p-6 shadow-lg shadow-slate-200/60';
@@ -39,6 +41,10 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
   const [contactInfo, setContactInfo] = useState({ fullName: '', email: '', phone: '' });
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; data: DiscountValidationResponse } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +122,11 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
     }));
   }, [currentUser]);
 
+  useEffect(() => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
+  }, [quantity, selectedTier?.id]);
+
   const availableSeatsForTier = useMemo(() => {
     if (!selectedTier || seatInventory.length === 0) {
       return 0;
@@ -134,6 +145,19 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
       return seatKeys.some(key => matchKeys.has(key!));
     }).length;
   }, [seatInventory, selectedTier, normalizeTierKey]);
+
+  const buildDiscountLineItems = useCallback(() => {
+    if (!selectedTier || quantity <= 0) {
+      return [];
+    }
+    return [
+      {
+        tierCode: selectedTier.tierCode,
+        quantity,
+        unitPrice: selectedTier.price,
+      },
+    ];
+  }, [quantity, selectedTier]);
 
   const backendRemaining = selectedTier ? Math.max(selectedTier.totalQuantity - selectedTier.soldQuantity, 0) : 0;
   const maxSelectable = useMemo(() => {
@@ -169,7 +193,10 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
   }, [inventoryLoading, maxSelectable, selectedTier]);
 
   const remainingAfterSelection = Math.max(0, maxSelectable - quantity);
-  const subtotal = selectedTier ? selectedTier.price * Math.max(quantity, 0) : 0;
+  const subtotal = useMemo(() => (selectedTier ? selectedTier.price * Math.max(quantity, 0) : 0), [quantity, selectedTier]);
+  const discountTotal = appliedDiscount?.data.discountTotal ?? 0;
+  const discountedTotal = appliedDiscount?.data.totalDue ?? subtotal;
+  const appliedDiscountBreakdown = appliedDiscount?.data.appliedDiscounts ?? [];
   const showCheckoutBar = Boolean(selectedTier && quantity > 0 && maxSelectable !== 0);
 
   const signedInName = useMemo(() => {
@@ -223,6 +250,7 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
     try {
       setSubmitting(true);
       setFormError(null);
+      const manualDiscountCode = appliedDiscount?.code;
 
       if (isFreestyleFlow) {
         const hold = await holdService.createHold({
@@ -230,6 +258,7 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
           buyerId: currentUser?.id,
           tierSelections: [{ tierCode: selectedTier.tierCode, quantity }],
           expiresAt: new Date(Date.now() + HOLD_DURATION_MS).toISOString(),
+          discountCode: manualDiscountCode,
         });
 
         if (typeof window !== 'undefined') {
@@ -271,6 +300,7 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
         buyerId: currentUser?.id,
         seatIds,
         expiresAt: new Date(Date.now() + HOLD_DURATION_MS).toISOString(),
+        discountCode: manualDiscountCode,
       });
 
       if (typeof window !== 'undefined') {
@@ -284,6 +314,54 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleApplyDiscount = async () => {
+    if (!selectedTier) {
+      return;
+    }
+    const normalizedCode = promoCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setDiscountError('Enter a promo code to apply.');
+      return;
+    }
+    if (!currentUser?.id) {
+      setDiscountError('Please sign in to redeem promo codes.');
+      return;
+    }
+    if (quantity <= 0) {
+      setDiscountError('Select at least one ticket before applying a code.');
+      return;
+    }
+    const items = buildDiscountLineItems();
+    if (items.length === 0) {
+      setDiscountError('Select at least one ticket before applying a code.');
+      return;
+    }
+
+    try {
+      setDiscountLoading(true);
+      setDiscountError(null);
+      const response = await discountService.validate({
+        eventId: id,
+        buyerId: currentUser.id,
+        discountCode: normalizedCode,
+        includeAutomaticDiscounts: true,
+        items,
+      });
+      setAppliedDiscount({ code: normalizedCode, data: response });
+    } catch (error) {
+      console.error('Failed to apply discount', error);
+      setAppliedDiscount(null);
+      setDiscountError(error instanceof Error ? error.message : 'We could not apply that code. Try again.');
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
   };
 
   const eventDateLabel = useMemo(() => {
@@ -509,10 +587,75 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
                     {quantity > 0 ? `${quantity} × $${selectedTier?.price.toFixed(2) ?? '0.00'}` : '—'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between font-semibold text-slate-900">
-                  <span>Total</span>
+                <div className="flex items-center justify-between">
+                  <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
+                {discountTotal > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-emerald-700">
+                      <span>Discounts</span>
+                      <span>- ${discountTotal.toFixed(2)}</span>
+                    </div>
+                    <ul className="space-y-1 text-xs text-slate-500">
+                      {appliedDiscountBreakdown.map(item => (
+                        <li key={item.discountId} className="flex items-center justify-between">
+                          <span className="font-medium text-slate-600">{item.code}</span>
+                          <span>- ${item.amount.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="flex items-center justify-between font-semibold text-slate-900">
+                  <span>Total due</span>
+                  <span>${discountedTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className={CARD_BASE_CLASS}>
+              <h2 className="text-lg font-semibold text-slate-900">Promo code</h2>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={event => setPromoCode(event.target.value)}
+                    placeholder="Enter code"
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-2 font-medium uppercase tracking-wide text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleApplyDiscount}
+                    disabled={discountLoading}
+                    className="rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    {discountLoading ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Applying…
+                      </span>
+                    ) : (
+                      'Apply'
+                    )}
+                  </Button>
+                </div>
+                {discountError && <p className="text-sm text-rose-600">{discountError}</p>}
+                {appliedDiscount && (
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <div>
+                      <p className="font-semibold">Code applied</p>
+                      <p className="text-xs uppercase tracking-wide">{appliedDiscount.code}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveDiscount}
+                      className="text-xs font-semibold uppercase tracking-wide text-emerald-800 underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -540,7 +683,7 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Total</p>
-                <p className="text-base font-semibold text-slate-900">${subtotal.toFixed(2)}</p>
+                <p className="text-base font-semibold text-slate-900">${discountedTotal.toFixed(2)}</p>
               </div>
               <Button
                 type="button"
@@ -564,7 +707,7 @@ export default function TicketSelectionPageClient({ params }: TicketSelectionPag
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Total</p>
-                  <p className="text-lg font-semibold text-slate-900">${subtotal.toFixed(2)}</p>
+                  <p className="text-lg font-semibold text-slate-900">${discountedTotal.toFixed(2)}</p>
                 </div>
               </div>
               <Button

@@ -329,9 +329,9 @@ const Checkout = () => {
     }));
   }, [hold, tierPriceMap]);
 
-  const totalPrice = useMemo(() => {
-    return lineItems.reduce((sum, item) => sum + item.price, 0);
-  }, [lineItems]);
+  const subtotalAmount = hold?.subtotalAmount ?? lineItems.reduce((sum, item) => sum + item.price, 0);
+  const discountAmount = hold?.discountAmount ?? 0;
+  const totalPrice = hold?.totalAmount ?? Math.max(subtotalAmount - discountAmount, 0);
 
   const holdIsActive = hold?.status === 'ACTIVE';
   const holdIsExpired = hold ? new Date(hold.expiresAt).getTime() <= Date.now() : false;
@@ -469,9 +469,21 @@ const Checkout = () => {
               <p className="p-4 text-sm text-gray-500">This hold has no seats attached.</p>
             )}
           </div>
-          <div className="mt-4 flex items-center justify-between text-lg font-semibold text-gray-900">
-            <span>Total</span>
-            <span>{formatMoney(totalPrice)}</span>
+          <div className="mt-4 space-y-2 text-sm text-gray-600">
+            <div className="flex items-center justify-between">
+              <span>Subtotal</span>
+              <span className="font-semibold text-gray-900">{formatMoney(subtotalAmount)}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-emerald-700">
+                <span>Discounts</span>
+                <span>- {formatMoney(discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-lg font-semibold text-gray-900">
+              <span>Total due</span>
+              <span>{formatMoney(totalPrice)}</span>
+            </div>
           </div>
         </section>
 

@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Users2,
   Users,
+  TicketPercent,
 } from "lucide-react";
 
 const MelangeLogo = () => (
@@ -25,6 +26,7 @@ const Sidebar = () => {
     { name: "Sponsors", href: "/admin/sponsors", icon: CircleDollarSign },
     { name: "Organizer", href: "/admin/organizer", icon: Users2 },
     { name: "Teams", href: "/admin/team", icon: Users },
+    { name: "Discounts", href: "/admin/discounts", icon: TicketPercent },
   ];
 
   return (
